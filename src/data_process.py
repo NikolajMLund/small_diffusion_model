@@ -6,6 +6,7 @@ import data_import
 import logging
 import matplotlib.pyplot as plt
 import visualisation
+import pickle
 
 
 def track(fn):
@@ -166,4 +167,20 @@ engine_shares_df = engine_shares.unstack('engine_type')
 ## Generate all plots                  ###
 ##########################################
 visualisation.run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob)
+
+##########################################
+## Save processed data for later use   ###
+## stored as a pickle file for easy loading in the future.         ###
+##########################################
+
+processed_data = {
+    'disappearance_rate': dis_rate,
+    'holdings_dist': holdings_dist,
+    'engine_shares': engine_shares_df,
+    'market_shares': market_shares,
+    'ncpurch_prob': ncpurch_prob
+}
+
+with open('processed_data.pkl', 'wb') as f:
+    pickle.dump(processed_data, f)
 
