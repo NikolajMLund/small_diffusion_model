@@ -5,6 +5,7 @@ import numpy as np
 import data_import
 import logging
 import matplotlib.pyplot as plt
+import visualisation
 
 
 def track(fn):
@@ -98,21 +99,14 @@ FAM55N.rename(columns={'TID': 'year', 'INDHOLD': 'count'}, inplace=True)
 market_shares=BIL51['count']/BIL51.groupby(['year', 'owner_type'], as_index=True)['count'].transform('sum')
 
 ###################################
-## prob. of purchasing a new car: ##
+## prob. of purchasing a new car: #
 ###################################
-
-#numerator
-#num= BIL51.groupby(['year', 'owner_type'], as_index=True)['count'].sum()
-
-#denominator
-#den=    FAM55N.groupby(['year'], as_index=True)['count'].sum()
 
 ncpurch_prob=(
     BIL51.groupby(['year', 'owner_type'], as_index=True)['count'].sum()/
     # shift +1: households observed beginning of t are denominator for purchases in t + 1
     FAM55N.groupby(['year'], as_index=True)['count'].sum().rename(index=lambda x: x - 1)
 )
-
 
 ###################################
 ## Scrap rate:                  ###
@@ -139,7 +133,7 @@ stockt1=(
     .rename(index=lambda x: x - 1, level='car_age')
     )['count']
 
-# this calculates the 
+# this calculates 
 #           age=0   age=1   age=2   age=3
 # year=2010  N(10,0) N(10,1) N(10,2) N(10,3)
 # year=2011  N(11,0) N(11,1) N(11,2) N(11,3)
@@ -152,44 +146,24 @@ stockt1=(
 dis = stockt0 - stockt1
 dis_rate = 1 - stockt1 / stockt0
 
-for year in dis_rate.index.get_level_values('year').unique()[-6:]:
-        plt.plot(dis_rate.loc[year,'BEV', :][0:-3], label=f'{year}')
-plt.xlabel('Car age')
-plt.ylabel('Disappearance rate - BEVs')
-plt.tight_layout()
-plt.legend()
-plt.savefig('disappearance_rate_by_age_BEV.png')
-
-plt.figure()
-for year in dis_rate.index.get_level_values('year').unique()[-6:]:
-        plt.plot(dis_rate.loc[year,'ICEV', :][0:-3], label=f'{year}')
-plt.xlabel('Car age')
-plt.ylabel('Disappearance rate - ICEVs')
-plt.tight_layout()
-plt.legend()
-plt.savefig('disappearance_rate_by_age_ICEV.png')
-breakpoint()
-
 # Conclusions: You can only really use the first 6 ages for BEVs and excluding the first one in year 0. 
 # For ICEVs it is better but you still have to skip the first year
 
+##########################################
+## Calculate holdings distribution     ###
+##########################################
+# For now I will model the distribution of holdings of the cars instead of the distribution of cars in the population. 
 
-###################################
-## Scrap rate:                  ###
-###################################
-"""
-Gives wierd results
-"""
+denom = BIL21.groupby('year', as_index=True)['count'].sum()
+num = BIL21.groupby(['year', 'engine_type', 'car_age'], as_index=True)['count'].sum()
 
+holdings_dist = num / denom
 
+engine_shares = BIL21.groupby(['year', 'engine_type'], as_index=True)['count'].sum() / denom
+engine_shares_df = engine_shares.unstack('engine_type')
 
-term1= (
-    BIL21.groupby(['year'], as_index=True)['count'].sum().rename(index=lambda x: x - 1)/
-    BIL21.groupby(['year'], as_index=True)['count'].sum()
-)
-term2= ( 
-    BIL51.groupby(['year','owner_type'], as_index=True)['count'].sum()/
-    BIL21.groupby(['year'], as_index=True)['count'].sum()
-)
-scrap_rate = -1 + term1  - term2 
-breakpoint()
+##########################################
+## Generate all plots                  ###
+##########################################
+visualisation.run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob)
+
