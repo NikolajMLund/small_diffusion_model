@@ -66,8 +66,8 @@ BIL21.set_index(['year', 'engine_type', 'car_age'], inplace=True)
 ## BIL51: PROCESSING ###
 ########################
 EJER_mapping = {
-    'Husholdningerne': 'Husholdningerne',
-    'Erhvervene': np.nan, # Drop rows with 'Erhvervene'
+    'Husholdningerne': 'Alle',
+    'Erhvervene': 'Alle', 
 }
 
 BIL51['owner_type'] = BIL51['EJER'].map(EJER_mapping)
@@ -97,16 +97,20 @@ FAM55N.rename(columns={'TID': 'year', 'INDHOLD': 'count'}, inplace=True)
 ## Create market shares: #
 ##########################
 
+# Using BIL51 to extract new registrations.
 market_shares=BIL51['count']/BIL51.groupby(['year', 'owner_type'], as_index=True)['count'].transform('sum')
 
 ###################################
 ## prob. of purchasing a new car: #
 ###################################
+denom_choice  = 2*FAM55N[FAM55N['year'] == 2020]['count'].values[0]
 
 ncpurch_prob=(
     BIL51.groupby(['year', 'owner_type'], as_index=True)['count'].sum()/
     # shift +1: households observed beginning of t are denominator for purchases in t + 1
-    FAM55N.groupby(['year'], as_index=True)['count'].sum().rename(index=lambda x: x - 1)
+    #FAM55N.groupby(['year'], as_index=True)['count'].sum().rename(index=lambda x: x - 1)
+    #BIL21.groupby('year', as_index=True)['count'].sum()
+    denom_choice
 )
 
 ###################################
@@ -150,6 +154,22 @@ dis_rate = 1 - stockt1 / stockt0
 # Conclusions: You can only really use the first 6 ages for BEVs and excluding the first one in year 0. 
 # For ICEVs it is better but you still have to skip the first year
 
+###########################################
+# Infer new car sales + netto imports: ####
+###########################################
+
+inflow = -(stockt0 - stockt1)
+#drop isnan values
+inflow = inflow.dropna()
+inflow = inflow.drop(index=24, level='car_age')
+# remove negative values (net exports) 
+inflow = inflow[inflow > 0]
+# only consider first 10 years
+inflow = inflow[inflow.index.get_level_values('car_age') <= 10]
+#inflow = inflow.rename('inflow')
+
+
+
 ##########################################
 ## Calculate holdings distribution     ###
 ##########################################
@@ -158,7 +178,7 @@ dis_rate = 1 - stockt1 / stockt0
 denom = BIL21.groupby('year', as_index=True)['count'].sum()
 num = BIL21.groupby(['year', 'engine_type', 'car_age'], as_index=True)['count'].sum()
 
-holdings_dist = num / denom
+holdings_dist = num / denom_choice
 
 engine_shares = BIL21.groupby(['year', 'engine_type'], as_index=True)['count'].sum() / denom
 engine_shares_df = engine_shares.unstack('engine_type')
@@ -166,7 +186,7 @@ engine_shares_df = engine_shares.unstack('engine_type')
 ##########################################
 ## Generate all plots                  ###
 ##########################################
-visualisation.run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob)
+visualisation.run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, BIL51.reset_index(), BIL21)
 
 ##########################################
 ## Save processed data for later use   ###
