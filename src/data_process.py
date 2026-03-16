@@ -169,6 +169,55 @@ inflow = inflow[inflow.index.get_level_values('car_age') <= 10]
 #inflow = inflow.rename('inflow')
 
 
+##########################################
+## Calculate market shares [0, A]:     ###
+# Sales are inferred from new registrations in BIL51
+# and from changes in the stock of BIL21.
+A=5 # considers purchases of cars from age 0 up to age A.
+
+# New registrations 
+new_registrations = BIL51.groupby(['year', 'engine_type'], as_index=True)['count'].sum()
+
+new_registrations = (new_registrations
+    .reset_index()
+    .assign(car_age=0)
+    .set_index(['year', 'engine_type', 'car_age'])['count']
+)
+
+# Inflow of new (a=0) cars in addition to new registrations 
+# and shifting the year ahead one year to align with the year of purchase (cars bought in year t are observed as inflow in year t+1)
+# the numbers is quite wild
+primo_stock_t1=stockt0.loc[:,:, 0].rename(index=lambda x: x - 1, level='year')
+new_car_imports = primo_stock_t1 - new_registrations
+new_car_imports = new_car_imports.reset_index()
+new_car_imports['car_age'] = 0
+new_car_imports = new_car_imports.set_index(['year', 'engine_type', 'car_age'])['count']
+visualisation.plot_new_car_imports(new_registrations, new_car_imports)
+
+# Inflow of cars from age 1 to A
+from pandas import IndexSlice as idx
+inflow_1_to_A = inflow.loc[idx[:, :, 1:A+1]]
+
+# Now append the new_car_imports to the inflow of cars from age 1 to A. 
+total_inflow = pd.concat([inflow_1_to_A, new_car_imports])
+
+# To avoid complications I will only count 1-A stock changes into purchase probabilities.
+# This means i'm not including the inflow of new cars not explained by new registrations in BIL51.
+
+car_purchases = (
+    pd.concat([inflow_1_to_A, new_registrations], axis=0)
+    .sort_index()
+)
+
+
+# Constructing car_purchase market shares:
+
+car_purchases_market_shares = (
+    car_purchases
+    .groupby(['year', 'engine_type', 'car_age']).sum()
+    /denom_choice
+)
+
 
 ##########################################
 ## Calculate holdings distribution     ###
@@ -198,7 +247,8 @@ processed_data = {
     'holdings_dist': holdings_dist,
     'engine_shares': engine_shares_df,
     'market_shares': market_shares,
-    'ncpurch_prob': ncpurch_prob
+    'ncpurch_prob': ncpurch_prob,
+    'car_purchases_market_shares': car_purchases_market_shares,
 }
 
 with open('processed_data.pkl', 'wb') as f:

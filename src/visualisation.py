@@ -226,6 +226,54 @@ def plot_cohort_survival(BIL21, year, ages=range(1, 11), output_dir=OUTPUT_DIR):
     plt.close(fig)
 
 
+def plot_new_car_imports(new_registrations, new_car_imports, output_dir=OUTPUT_DIR):
+    import numpy as np
+    _ensure_dir(output_dir)
+
+    reg = new_registrations.groupby(['year', 'engine_type']).sum()
+    imp = new_car_imports.groupby(['year', 'engine_type']).sum()
+
+    engine_types = ['BEV', 'ICEV']
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5), sharey=False)
+
+    for ax, engine in zip(axes, engine_types):
+        try:
+            r = reg.xs(engine, level='engine_type')
+            i = imp.xs(engine, level='engine_type')
+        except KeyError:
+            continue
+
+        common = sorted(set(r.index) & set(i.index))
+        r = r.loc[common]
+        i = i.loc[common]
+
+        x = np.arange(len(common))
+        imp_pos = np.where(i.values >= 0, i.values, 0)
+        imp_neg = np.where(i.values < 0, i.values, 0)
+
+        width = 0.4
+        ax.bar(x - width / 2, r.values, width=width, label='New registrations (BIL51)', color='steelblue')
+        ax.bar(x - width / 2, imp_pos, width=width, bottom=r.values,
+               label='Unexplained imports (residual)', color='darkorange', alpha=0.8)
+        ax.bar(x + width / 2, np.abs(imp_neg), width=width,
+               label='Net exports (negative residual)', color='firebrick', alpha=0.8)
+
+        ymax = (r.values + imp_pos).max() * 1.1
+        ax.set_ylim(0, ymax)
+        ax.axhline(0, color='black', linewidth=0.6)
+        ax.set_xticks(x)
+        ax.set_xticklabels(common, rotation=45)
+        ax.set_xlabel('Year')
+        ax.set_ylabel('Count')
+        ax.set_title(f'New car inflow decomposition — {engine}')
+        ax.legend()
+
+    plt.suptitle('Age-0 stock = BIL51 registrations + unexplained imports')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'new_car_imports_decomposition.png'))
+    plt.close(fig)
+
+
 def run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, new_registrations, BIL21, year=None, output_dir=OUTPUT_DIR):
     """Generate all standard plots."""
     if year is None:

@@ -2,6 +2,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import os
 
 # Import processed data 
 with open('processed_data.pkl', 'rb') as f:
@@ -12,6 +13,7 @@ holdings_dist = processed_data['holdings_dist']
 dis_rate = processed_data['disappearance_rate']
 market_shares = processed_data['market_shares']
 ncpurch_prob = processed_data['ncpurch_prob']
+car_purchases_market_shares = processed_data['car_purchases_market_shares']
 
 
 # Age transition probabilities and survival rates. 
@@ -42,27 +44,24 @@ survival_age_matrix= (1 - dis_rate_clipped) * age_step_matrix
 # Q AGE 
 
 # Next step is to create the behaviour matrix.
-prob_buying_new=ncpurch_prob.loc[year, :].values
-prob_buying_given_new = market_shares.loc[year, :].values 
-prob_buying = prob_buying_new * prob_buying_given_new
+#prob_buying_new=ncpurch_prob.loc[year-1, :].values
+#prob_buying_given_new = market_shares.loc[year-1, :].values 
+#prob_buying = prob_buying_new * prob_buying_given_new
 
+max_age_car_traded=car_purchases_market_shares.index.get_level_values('car_age').unique().values[0]
+prob_buying = car_purchases_market_shares.loc[year-1, car_type, :] 
+prob_buying
 
 holdings_dist_prev_year = holdings_dist.loc[year - 1, car_type, :].values
 
 
-survival_age_matrix[0,:]
-survival_age_matrix@holdings_dist_prev_year
-
-
-#survival_and_buying_matrix = survival_age_matrix.copy()
-#survival_and_buying_matrix[0, :] = prob_buying[1]
-
 # transitioning
 q_t=survival_age_matrix@holdings_dist_prev_year
-q_t[0] += prob_buying[1]
+breakpoint()
+q_t[0:max_age_car_traded] += prob_buying.loc[year-1, car_type, :]
 
 q_tt = age_step_matrix@q_t
-q_tt[0] += prob_buying[1]
+q_tt[0:max_age_car_traded] += prob_buying.loc[year-1, car_type, :]
 
 # Compare q_t (forecast) with actual holdings distribution in year+1
 actual_year = holdings_dist.loc[year, car_type, :].values
@@ -86,6 +85,10 @@ ax2.set_ylabel('Share of total holdings')
 ax2.set_title(f'{car_type}: 2-year forecast vs actual ({year + 1})')
 ax2.legend()
 
+OUTPUT_DIR = os.path.join(os.path.dirname(__file__), '..', 'analysis', 'plots')
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+plt.savefig(os.path.join(OUTPUT_DIR, f'forecast_vs_actual.png'))
 plt.tight_layout()
 plt.show()
 
