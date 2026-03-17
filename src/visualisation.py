@@ -274,6 +274,35 @@ def plot_new_car_imports(new_registrations, new_car_imports, output_dir=OUTPUT_D
     plt.close(fig)
 
 
+def plot_scrap_profile(dis_full, scrap_profile, car_type, age_floor, n_years=6, output_dir=OUTPUT_DIR):
+    _ensure_dir(output_dir)
+    fig, ax = plt.subplots()
+
+    # Observed data: all ages for this car type
+    dis_ct = dis_full.xs(car_type, level='engine_type')
+    years = dis_ct.index.get_level_values('year').unique()[-n_years:]
+    for year in years:
+        try:
+            data = dis_ct.loc[year]
+            ax.plot(data.index.get_level_values('car_age'), data.values,
+                    color='steelblue', alpha=0.4, linewidth=1)
+        except KeyError:
+            pass
+
+    ax.plot(scrap_profile.index, scrap_profile.values,
+            color='firebrick', linewidth=2, label='Model fit')
+    ax.axvline(age_floor, color='grey', linewidth=0.8, linestyle=':',
+               label=f'Estimation floor (age {age_floor})')
+
+    ax.set_xlabel('Car age')
+    ax.set_ylabel('Disappearance rate')
+    ax.set_title(f'Scrap profile — {car_type}')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'scrap_profile_{car_type}.png'))
+    plt.close(fig)
+
+
 def run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, new_registrations, BIL21, year=None, output_dir=OUTPUT_DIR):
     """Generate all standard plots."""
     if year is None:

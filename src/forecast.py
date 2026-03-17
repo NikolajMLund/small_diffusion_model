@@ -32,12 +32,16 @@ car_type = 'BEV'
 age_step_matrix = np.eye(n_ages, k=-1)
 
 # Multiply by the survival rates picking a (year, engine)-pair to exemplify
-dis_rate_cleaned=dis_rate.loc[year-1, car_type, :].values 
+#dis_rate_cleaned=dis_rate.loc[year-1, car_type, :].values 
+dis_rate_cleaned = processed_data['scrap_profile'].values
+dis_rate_clipped = dis_rate_cleaned.copy()
+#dis_rate_cleaned = np.nan_to_num(dis_rate_cleaned, nan=0.0)  # Replace NaN with 0 for multiplication
+#dis_rate_clipped = np.clip(dis_rate_cleaned, 0, 1)  # Ensure values are between 0 and 1
+#dis_rate_clipped = dis_rate_clipped[1:]
+#dis_rate_clipped[-1] = 1.0  # Set the last age's disappearance rate to 1 (certain disappearance/ forced scrappage)
 
-dis_rate_cleaned = np.nan_to_num(dis_rate_cleaned, nan=0.0)  # Replace NaN with 0 for multiplication
-dis_rate_clipped = np.clip(dis_rate_cleaned, 0, 1)  # Ensure values are between 0 and 1
-dis_rate_clipped = dis_rate_clipped[1:]
-dis_rate_clipped[-1] = 1.0  # Set the last age's disappearance rate to 1 (certain disappearance/ forced scrappage)
+# adding 1 to ensure forced scrappage at older ages
+dis_rate_clipped=np.append(dis_rate_clipped,1.0)
 
 survival_age_matrix= (1 - dis_rate_clipped) * age_step_matrix
 
@@ -54,10 +58,8 @@ prob_buying = car_purchases_market_shares
 
 holdings_dist_prev_year = holdings_dist.loc[year - 1, car_type, :].values
 
-
 # transitioning
 q_t=survival_age_matrix@holdings_dist_prev_year
-
 q_t[0:(max_age_car_traded+1)] += prob_buying.loc[year-1, car_type, :]
 
 q_tt = survival_age_matrix@q_t

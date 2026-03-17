@@ -1,3 +1,5 @@
 *.png
 */__pycache__/
 *.pyc
+/AIDS_model/*.*
+/AIDS_model
