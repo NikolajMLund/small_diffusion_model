@@ -60,6 +60,10 @@ scrap_profile = pd.Series(
 )
 scrap_profile.index.name = 'car_age'
 
+# add forced scrappage at age max_age+1: (it's a pandas dataframe)
+
+scrap_profile.loc[max_age + 2] = 1.0
+
 # store this prediction in processed data
 processed_data['scrap_profile'] = scrap_profile
 with open('processed_data.pkl', 'wb') as f:

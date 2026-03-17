@@ -42,7 +42,6 @@ dis_rate_clipped = dis_rate_cleaned.copy()
 
 # adding 1 to ensure forced scrappage at older ages
 dis_rate_clipped=np.append(dis_rate_clipped,1.0)
-
 survival_age_matrix= (1 - dis_rate_clipped) * age_step_matrix
 
 ## THIS can be done so much more elegant by first assuming cars are scrapped/imported/exported and then calculating the transition probabilities.
@@ -52,7 +51,6 @@ survival_age_matrix= (1 - dis_rate_clipped) * age_step_matrix
 #prob_buying_new=ncpurch_prob.loc[year-1, :].values
 #prob_buying_given_new = market_shares.loc[year-1, :].values 
 #prob_buying = prob_buying_new * prob_buying_given_new
-
 max_age_car_traded=car_purchases_market_shares.index.get_level_values('car_age').unique().max()
 prob_buying = car_purchases_market_shares
 
@@ -72,7 +70,7 @@ ages = np.arange(n_ages)
 
 width = 0.35
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-
+breakpoint()
 ax1.bar(ages - width/2, q_t, width=width, label=f'q_t forecast ({year})')
 ax1.bar(ages + width/2, actual_year, width=width, label=f'Actual ({year})')
 ax1.set_xlabel('Car age')

@@ -128,9 +128,9 @@ def main():
     """
 
     # Vintage-level disappearance rate:
-    # disappearance_rate(age=a, year=t) = 1 - N(t+1, a+1) / N(t, a)
+    # disappearance_rate(age=a, year=t) = 1 - N(t+1, a) / N(t, a)
     # Purchases drop out since no new cars join a cohort after age 0.
-    # Align N(t+1, a+1) with N(t, a) by shifting year and car_age back by 1.
+    # Align N(t+1, a) with N(t, a) by shifting year and car_age back by 1.
 
     stockt0 = BIL21['count']
     stockt1=(
@@ -179,7 +179,7 @@ def main():
     ## Calculate market shares [0, A]:     ###
     # Sales are inferred from new registrations in BIL51
     # and from changes in the stock of BIL21.
-    A=5 # considers purchases of cars from age 0 up to age A.
+    A=6 # considers purchases of cars from age 0 up to age A.
 
     # New registrations
     new_registrations = BIL51.groupby(['year', 'engine_type'], as_index=True)['count'].sum()
@@ -202,7 +202,7 @@ def main():
 
     # Inflow of cars from age 1 to A
     from pandas import IndexSlice as idx
-    inflow_1_to_A = inflow.loc[idx[:, :, 1:A+1]]
+    inflow_1_to_A = inflow.loc[idx[:, :, 1:A]]
 
     # Now append the new_car_imports to the inflow of cars from age 1 to A.
     total_inflow = pd.concat([inflow_1_to_A, new_car_imports])
