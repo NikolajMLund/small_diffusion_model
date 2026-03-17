@@ -32,12 +32,13 @@ car_type = 'BEV'
 age_step_matrix = np.eye(n_ages, k=-1)
 
 # Multiply by the survival rates picking a (year, engine)-pair to exemplify
-dis_rate_cleaned=dis_rate.loc[year, car_type, :].values 
+dis_rate_cleaned=dis_rate.loc[year-1, car_type, :].values 
 
 dis_rate_cleaned = np.nan_to_num(dis_rate_cleaned, nan=0.0)  # Replace NaN with 0 for multiplication
 dis_rate_clipped = np.clip(dis_rate_cleaned, 0, 1)  # Ensure values are between 0 and 1
 dis_rate_clipped = dis_rate_clipped[1:]
 dis_rate_clipped[-1] = 1.0  # Set the last age's disappearance rate to 1 (certain disappearance/ forced scrappage)
+
 survival_age_matrix= (1 - dis_rate_clipped) * age_step_matrix
 
 ## THIS can be done so much more elegant by first assuming cars are scrapped/imported/exported and then calculating the transition probabilities.
@@ -48,20 +49,19 @@ survival_age_matrix= (1 - dis_rate_clipped) * age_step_matrix
 #prob_buying_given_new = market_shares.loc[year-1, :].values 
 #prob_buying = prob_buying_new * prob_buying_given_new
 
-max_age_car_traded=car_purchases_market_shares.index.get_level_values('car_age').unique().values[0]
-prob_buying = car_purchases_market_shares.loc[year-1, car_type, :] 
-prob_buying
+max_age_car_traded=car_purchases_market_shares.index.get_level_values('car_age').unique().max()
+prob_buying = car_purchases_market_shares
 
 holdings_dist_prev_year = holdings_dist.loc[year - 1, car_type, :].values
 
 
 # transitioning
 q_t=survival_age_matrix@holdings_dist_prev_year
-breakpoint()
-q_t[0:max_age_car_traded] += prob_buying.loc[year-1, car_type, :]
 
-q_tt = age_step_matrix@q_t
-q_tt[0:max_age_car_traded] += prob_buying.loc[year-1, car_type, :]
+q_t[0:(max_age_car_traded+1)] += prob_buying.loc[year-1, car_type, :]
+
+q_tt = survival_age_matrix@q_t
+q_tt[0:(max_age_car_traded+1)] += prob_buying.loc[year, car_type, :]
 
 # Compare q_t (forecast) with actual holdings distribution in year+1
 actual_year = holdings_dist.loc[year, car_type, :].values

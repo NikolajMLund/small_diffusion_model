@@ -159,6 +159,11 @@ dis_rate = 1 - stockt1 / stockt0
 ###########################################
 
 inflow = -(stockt0 - stockt1)
+
+# Reindex Reason: the stock at t1 was reindexed to t0.
+# they are 0 year olds becoming 1 year olds. So I want them to register as 1 years olds not 0 years olds.
+inflow = inflow.rename(index=lambda x: x + 1, level='car_age')
+
 #drop isnan values
 inflow = inflow.dropna()
 inflow = inflow.drop(index=24, level='car_age')
