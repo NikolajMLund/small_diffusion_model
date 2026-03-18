@@ -11,7 +11,7 @@ data_path = 'processed_data.pkl'
 model_config = ModelConfig()
 forecast_config = ForecastConfig(
     base_year=2023,
-    target_year=2024,
+    target_year=2070,
     invariant_disappearance_rates=True,
     invariant_inflows=True
 )
