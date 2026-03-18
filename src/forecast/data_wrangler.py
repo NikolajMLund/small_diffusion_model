@@ -30,13 +30,13 @@ def prepare_data_for_forecast(
     purchase_inflows: (n_forecast_years, n_car_types, max_purchase_age+1) purchase shares by car_type, age
     """    
 
-    # unpack forecast config
+    # unpack config
     base_year = forecast_config.base_year
     target_year = forecast_config.target_year
-    car_types = forecast_config.car_types
-    n_forecast_years = target_year - base_year 
+    n_forecast_years = target_year - base_year
     invariant_disappearance_rates = forecast_config.invariant_disappearance_rates
     invariant_inflows = forecast_config.invariant_inflows
+    car_types = model_config.engine_types
     
     # load data
     data = load_data(data_path)
@@ -48,7 +48,7 @@ def prepare_data_for_forecast(
     holdings_dist = data['holdings_dist']
     state = np.zeros((len(car_types), model_config.max_car_age + 2)) + np.nan
     for i, car_type in enumerate(car_types):
-        state[i, :] = holdings_dist.loc[target_year - 1, car_type, :].values
+        state[i, :] = holdings_dist.loc[base_year, car_type, :].values
 
     # ----------------------------------------------------------------------
     # Disappearance rates: 
@@ -110,7 +110,6 @@ if __name__ == "__main__":
     model_config = ModelConfig()
     forecast_config = ForecastConfig(
         target_year=2024,
-        car_types=['ICEV', 'BEV'],
         invariant_disappearance_rates=True,
         invariant_inflows=True
     )
@@ -120,4 +119,3 @@ if __name__ == "__main__":
     state = prepared_data['state']
     dis_rates = prepared_data['dis_rates']
     purchase_inflows = prepared_data['purchase_inflows']
-    breakpoint()
