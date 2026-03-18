@@ -78,11 +78,7 @@ if __name__ == "__main__":
     from forecast.data_wrangler import load_data, prepare_data_for_forecast
     data_path = 'processed_data.pkl'
     model_config = ModelConfig()
-    forecast_config = ForecastConfig(
-        target_year=2024,
-        invariant_disappearance_rates=True,
-        invariant_inflows=True
-    )
+    forecast_config = ForecastScenarioConfig(target_year=2024)
     data = load_data(data_path)
     processed_data = prepare_data_for_forecast(data_path, model_config, forecast_config)
     forecasted_distributions = forecast(

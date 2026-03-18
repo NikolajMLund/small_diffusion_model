@@ -137,7 +137,7 @@ def plot_sales_by_engine_type(inflow, new_registrations, n_years=6, output_dir=O
     plt.savefig(os.path.join(output_dir, 'car_inflow_by_engine_type.png'))
 
 
-def plot_stock_inflow_stock(BIL21, new_registrations, engine_type, n_years=6, output_dir=OUTPUT_DIR):
+def plot_stock_inflow_stock(BIL21, new_registrations, engine_type, n_years=6, years=None, output_dir=OUTPUT_DIR):
     import numpy as np
     _ensure_dir(output_dir)
 
@@ -153,9 +153,13 @@ def plot_stock_inflow_stock(BIL21, new_registrations, engine_type, n_years=6, ou
     reg = (new_registrations[new_registrations['engine_type'] == engine_type]
            .groupby('year')['count'].sum())                                # BIL51(t)
 
-    common_years = sorted(
+    all_common = sorted(
         set(stock_a0_t.index) & set(stock_a1_t1.index) & set(stock_a0_t1.index) & set(reg.index)
-    )[-n_years:]
+    )
+    if years is not None:
+        common_years = [y for y in all_common if y in years]
+    else:
+        common_years = all_common[-n_years:]
 
     stock_a0_t  = stock_a0_t.loc[common_years]
     stock_a1_t1 = stock_a1_t1.loc[common_years]
@@ -181,7 +185,8 @@ def plot_stock_inflow_stock(BIL21, new_registrations, engine_type, n_years=6, ou
     ax.set_title(f'Stock consistency check ({engine_type})')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, f'stock_inflow_stock_{engine_type}.png'))
+    suffix = f'_{min(years)}-{max(years)}' if years is not None else ''
+    plt.savefig(os.path.join(output_dir, f'stock_inflow_stock_{engine_type}{suffix}.png'))
 
 
 def plot_cohort_survival(BIL21, year, ages=range(1, 11), output_dir=OUTPUT_DIR):
@@ -318,6 +323,9 @@ def run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_pr
     plot_sales_by_age(inflow, 'ICEV', output_dir=output_dir)
     plot_sales_by_engine_type(inflow, new_registrations, output_dir=output_dir)
     plot_stock_inflow_stock(BIL21, new_registrations, 'BEV', output_dir=output_dir)
+    plot_stock_inflow_stock(BIL21, new_registrations, 'BEV', years=range(2020, 2026), output_dir=output_dir)
     plot_stock_inflow_stock(BIL21, new_registrations, 'ICEV', output_dir=output_dir)
     plot_cohort_survival(BIL21, year, output_dir=output_dir)
+    for y in [2021, 2022, 2023]:
+        plot_cohort_survival(BIL21, y, output_dir=output_dir)
     print(f"All plots saved to {os.path.abspath(output_dir)}")
