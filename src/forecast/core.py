@@ -1,10 +1,44 @@
-import pickle
-
 import numpy as np
 
-def load_data(data_path: str) -> dict:
-    with open(data_path, 'rb') as f:
-        return pickle.load(f)
+from forecast.ModelConfig import ModelConfig
+from forecast.ForecastConfig import ForecastConfig
+
+def forecast(
+    state: np.ndarray,
+    dis_rates: np.ndarray,
+    purchase_inflows: np.ndarray,
+    model_config,
+    forecast_config
+) -> dict:  
+    """
+    state: (n_car_types, n_ages) current age distribution
+    dis_rates: (n_forecast_years, n_car_types, n_ages) raw disappearance rates for the step year
+    purchase_inflows: (n_forecast_years, n_car_types, max_purchase_age+1) purchase shares by car_type, age
+    """
+
+    target_year = forecast_config.target_year
+    n_periods = target_year - forecast_config.base_year 
+    n_car_types = len(forecast_config.car_types)
+    n_ages = model_config.max_car_age + 2  # +2 to account for age 0 and the forced scrappage age
+
+    # Initialize a np.array to hold the forecasted age distributions for each car type and year
+    forecasted_distributions = np.zeros((n_periods, n_car_types, n_ages)) + np.nan
+
+    # Set the initial state for the first year
+    for i, car_type in enumerate(model_config.car_types):
+        
+        for t, year in enumerate(np.arange(forecast_config.base_year, target_year)):
+            if t == 0: 
+                forecasted_distributions[t, i, :] = state[i, :]
+            else: 
+                forecasted_distributions[t, i, :] = markov_step(
+                    state=forecasted_distributions[t-1, i, :],
+                    dis_rates=dis_rates[t-1, i, :],
+                    purchase_inflows=purchase_inflows[t-1, i, :],
+                    model_config=model_config,
+                    forecast_config=forecast_config
+                )
+    return forecasted_distributions
 
 def markov_step(
     state: np.ndarray,
@@ -39,3 +73,24 @@ def markov_step(
     next_state[0:(model_config.purchase_age_limit + 1)] += purchase_inflows
 
     return next_state
+
+if __name__ == "__main__":
+    from forecast.data_wrangler import load_data, prepare_data_for_forecast
+    data_path = 'processed_data.pkl'
+    model_config = ModelConfig()
+    forecast_config = ForecastConfig(
+        target_year=2024,
+        car_types=['ICEV', 'BEV'],
+        invariant_disappearance_rates=True,
+        invariant_inflows=True
+    )
+    data = load_data(data_path)
+    processed_data = prepare_data_for_forecast(data_path, model_config, forecast_config)
+    forecasted_distributions = forecast(
+        state=processed_data['state'],
+        dis_rates=processed_data['dis_rates'],
+        purchase_inflows=processed_data['purchase_inflows'],
+        model_config=model_config,
+        forecast_config=forecast_config
+    )
+    breakpoint()
