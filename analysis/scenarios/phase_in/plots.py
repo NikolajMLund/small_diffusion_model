@@ -7,12 +7,12 @@ from pandas import IndexSlice as idx
 
 def plot_total_sales_forecast(
     historical_years, y, sales_forecast,
-    projection_years, sales_projection,
+    projection_years, sales_projection, actual_car_sales,
     base_year, output_dir,
 ):
     os.makedirs(output_dir, exist_ok=True)
     fig, ax = plt.subplots()
-    ax.scatter(historical_years, y, label='Raw data', zorder=3)
+    ax.scatter(actual_car_sales.index.values, actual_car_sales.values, label='Raw data', zorder=3)
     ax.plot(historical_years, sales_forecast, label='Regression fit')
     ax.plot(projection_years, sales_projection, linestyle='--', label='Projection')
     ax.scatter(projection_years, sales_projection, zorder=3)

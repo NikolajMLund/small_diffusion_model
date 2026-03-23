@@ -14,8 +14,8 @@ from forecast.plotting import plot_forecast_vs_actual
 from forecast.scenarios.PhaseInScenario import PhaseInScenario, PhaseInScenarioConfig
 from plots import plot_total_sales_forecast, plot_engine_share_over_time
 
-BASE_YEAR = 2025
-TARGET_YEAR = 2030
+BASE_YEAR = 2023
+TARGET_YEAR = 2024
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'plots')
 DATA_PATH = 'processed_data.pkl'
 
@@ -46,6 +46,7 @@ infer_sales_year = np.arange(
 )
 
 new_car_sales=market_shares.groupby('year').sum().loc[infer_sales_year]
+actual_car_sales=market_shares.groupby('year').sum()
 
 # regression to extrapolate sales into forecast horizon
 from statsmodels.regression.linear_model import OLS
@@ -75,6 +76,7 @@ plot_total_sales_forecast(
     historical_years=historical_years,
     y=y,
     sales_forecast=sales_forecast,
+    actual_car_sales = actual_car_sales,
     projection_years=projection_years,
     sales_projection=projected_sales,
     base_year=forecast_config.base_year,
@@ -195,7 +197,6 @@ predicted_market_shares_import_bev = predicted_market_shares_total_bev - predict
 predicted_market_shares_reg_icev = (1 - bev_fit_total)[np.isin(all_years, projection_years)]
 
 # sanity check
-breakpoint()
 sanity=predicted_market_shares_reg_icev + predicted_market_shares_reg_bev + predicted_market_shares_import_bev 
 assert np.all(np.isclose(sanity,1.0)), 'Shares should sum to 1.0' 
 
@@ -249,7 +250,6 @@ for i, engine_type in enumerate(model_config.engine_types):
 
 assert np.all(np.isclose(predicted_market_shares.sum(axis=(1,2)), 1.0)), 'should sum to 1 in each year (at this stage)'
 
-breakpoint()
 predicted_inflow[...] = predicted_market_shares * projected_sales[:, np.newaxis, np.newaxis]
 
 # This should give us the schedule we are looking for. 
@@ -268,13 +268,8 @@ predicted_inflow[...] = predicted_market_shares * projected_sales[:, np.newaxis,
 # ---------------------------------------------------------------
 
 scenario_config = PhaseInScenarioConfig(
-    expected_sales = dict(zip(projection_years, projected_sales)),
-    bev_share_schedule = {
-        2023: np.array([0.3, 0.7]),   # TODO: Should develop according to some schedule. 
-    },
-    age_dist_schedule = {
-        2023: np.array([0.2, 0.3, 0.1, 0.1, 0.1, 0.1, 0.1]),   # TODO: Should we assume the age distribution of inflows remains constant, or changes over time (e.g., due to changing import patterns)?
-    }
+    market_shares=predicted_market_shares,
+    projected_sales=projected_sales
 )
 
 Scenario = PhaseInScenario(
@@ -285,6 +280,7 @@ Scenario = PhaseInScenario(
 )
 
 prepared = Scenario.prepare()
+breakpoint()
 forecasted_distributions = forecast(
     state=prepared['state'],
     dis_rates=prepared['dis_rates'],
