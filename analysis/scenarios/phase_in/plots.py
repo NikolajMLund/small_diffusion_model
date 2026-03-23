@@ -26,6 +26,84 @@ def plot_total_sales_forecast(
     plt.show()
 
 
+def plot_bev_diffusion_fit(
+    all_years, bev_fit_reg, bev_fit_total,
+    bev_share_reg, bev_share_total,
+    base_year, saturation, output_dir, file_name='bev_diffusion_fit.png'
+):
+    os.makedirs(output_dir, exist_ok=True)
+    fig, ax = plt.subplots()
+
+    # Observed data
+    ax.scatter(bev_share_reg.index, bev_share_reg.values,
+               label='Observed — new reg only', zorder=3, marker='s', color='tab:blue')
+    ax.scatter(bev_share_total.index, bev_share_total.values,
+               label='Observed — incl. imports', zorder=3, marker='o', color='tab:orange')
+
+    # Fitted S-curves
+    hist_mask = all_years <= base_year
+    proj_mask = all_years >= base_year
+    ax.plot(all_years[hist_mask], bev_fit_reg[hist_mask], color='tab:blue', linewidth=1.5)
+    ax.plot(all_years[proj_mask], bev_fit_reg[proj_mask], color='tab:blue', linewidth=1.5,
+            linestyle='--', label='Logistic fit — new reg only')
+    ax.plot(all_years[hist_mask], bev_fit_total[hist_mask], color='tab:orange', linewidth=1.5)
+    ax.plot(all_years[proj_mask], bev_fit_total[proj_mask], color='tab:orange', linewidth=1.5,
+            linestyle='--', label='Logistic fit — incl. imports')
+
+    # Saturation line and base-year marker
+    ax.axhline(saturation, color='grey', linestyle=':', linewidth=0.8,
+               label=f'Saturation = {saturation:.0%}')
+    ax.axvline(base_year, color='grey', linestyle=':', linewidth=0.8)
+
+    ax.set_xlabel('Year')
+    ax.set_ylabel('BEV share of purchases')
+    ax.set_title('BEV adoption — logistic diffusion fit\n'
+                 'Solid: historical fit | Dashed: projection')
+    ax.set_ylim(0, 1)
+    ax.legend()
+    fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
+    plt.show()
+
+def plot_age_distribution_of_inflows(car_purchases_market_shares, base_year, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Filter to imports (car_age >= 1) and sum over any remaining dimensions
+    imports = car_purchases_market_shares[
+        car_purchases_market_shares.index.get_level_values('car_age') >= 1
+    ]
+    by_year_engine_age = imports.groupby(['year', 'engine_type', 'car_age']).sum()
+
+    engine_types = ['BEV', 'ICEV']
+    cmap = plt.get_cmap('tab10')
+    fig, axes = plt.subplots(2, 1, figsize=(9, 7), sharex=True)
+
+    for ax, engine in zip(axes, engine_types):
+        subset = by_year_engine_age.loc[idx[:, engine, :]]
+        pivot = subset.unstack('car_age').fillna(0)
+        pivot.index = pivot.index.get_level_values('year')
+        years = pivot.index.values
+        ages = pivot.columns.get_level_values('car_age')
+
+        bottom = np.zeros(len(years))
+        for age in ages:
+            values = pivot[age].values
+            ax.bar(years, values, bottom=bottom, color=cmap(age), label=f'Age {age}')
+            bottom += values
+
+        ax.axvline(base_year, color='grey', linestyle=':', linewidth=0.8)
+        ax.set_title(engine)
+        ax.set_ylabel('Market share')
+
+    axes[-1].set_xlabel('Year')
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', ncol=len(handles), bbox_to_anchor=(0.5, 0))
+    fig.suptitle('Age distribution of implied car imports (car_age ≥ 1)\n'
+                 'Inferred from stock changes; excludes exports')
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
+    fig.savefig(os.path.join(output_dir, 'age_dist_imports.png'), dpi=150, bbox_inches='tight')
+    plt.show()
+
+
 def plot_engine_share_over_time(market_shares, new_reg_market_shares, base_year, output_dir):
     """
     Plots BEV and ICEV shares of purchases over time, comparing:

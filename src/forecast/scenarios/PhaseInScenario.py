@@ -31,7 +31,6 @@ class PhaseInScenario(BaseScenario):
     ) -> np.ndarray:
         """
         """
-        breakpoint()
         # Setting objects
         total_inflows = np.zeros(self.n_forecast_years) + np.nan   
         engine_shares = np.zeros((self.n_forecast_years, len(self.car_types))) + np.nan  
