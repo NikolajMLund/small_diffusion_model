@@ -13,21 +13,24 @@ import numpy as np
 from pandas import IndexSlice as idx
 
 from forecast.ModelConfig import ModelConfig
+from forecast.ForecastConfig import ForecastConfig
 
-class BaseWrangler(ABC):
+class BaseScenario(ABC):
 
     def __init__(
         self,
         data: dict,
         model_config: ModelConfig,
-        base_year: int = 2023,
-        target_year: int = 2024
+        forecast_config: ForecastConfig,
+        scenario_config
     ) -> None:
         self.data = data
         self.model_config = model_config
-        self.base_year = base_year
-        self.target_year = target_year
-        self.n_forecast_years = target_year - base_year
+        self.forecast_config = forecast_config
+        self.scenario_config = scenario_config
+        self.base_year = forecast_config.base_year
+        self.target_year = forecast_config.target_year
+        self.n_forecast_years = self.target_year - self.base_year
         self.car_types = model_config.engine_types
         self.n_ages = model_config.max_car_age + 2
 
@@ -101,9 +104,9 @@ class BaseWrangler(ABC):
     # Convenience: assembles the dict expected by core.forecast()
     # ------------------------------------------------------------------
 
-    def prepare(self, config) -> dict:
+    def prepare(self) -> dict:
         return {
             'state': self.get_state(),
-            'dis_rates': self.get_dis_rates(config),
-            'purchase_inflows': self.get_purchase_inflows(config),
+            'dis_rates': self.get_dis_rates(self.scenario_config),
+            'purchase_inflows': self.get_purchase_inflows(self.scenario_config),
         }

@@ -3,7 +3,5 @@ channels:
   - defaults
 dependencies:
   - python=3.12
-  - numpy
-  - pandas
-  - matplotlib
-  - requests
+  - pip:
+    - -e .

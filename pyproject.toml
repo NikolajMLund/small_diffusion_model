@@ -10,7 +10,13 @@ dependencies = [
     "numpy",
     "pandas",
     "matplotlib",
+    "requests",
+    "statsmodels",
 ]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+extraPaths = ["src"]

@@ -279,6 +279,160 @@ def plot_new_car_imports(new_registrations, new_car_imports, output_dir=OUTPUT_D
     plt.close(fig)
 
 
+def _draw_inflow_bars(ax, reg_eng, imp_eng, inflow_eng, years, A, bar_width, age_colors):
+    """Draw grouped inflow bars onto ax. Returns legend handles dict."""
+    import numpy as np
+    x = np.arange(len(years))
+    n_ages = A + 1
+    legend_handles = {}
+
+    for age_idx, age in enumerate(range(n_ages)):
+        x_pos = x - 0.35 + bar_width * (age_idx + 0.5)
+
+        if age == 0:
+            reg_vals = np.array([reg_eng.get(y, 0) for y in years], dtype=float)
+            imp_vals = np.array([imp_eng.get(y, 0) for y in years], dtype=float)
+
+            h1 = ax.bar(x_pos, reg_vals, width=bar_width, color='steelblue', label='Age 0 — new registrations')
+            legend_handles.setdefault('reg', h1)
+
+            imp_pos = np.where(imp_vals >= 0, imp_vals, 0)
+            imp_neg = np.where(imp_vals < 0, imp_vals, 0)
+            if imp_pos.any():
+                h2 = ax.bar(x_pos, imp_pos, width=bar_width, bottom=reg_vals,
+                            color='darkorange', label='Age 0 — imports (residual)')
+                legend_handles.setdefault('imp_pos', h2)
+            if imp_neg.any():
+                h3 = ax.bar(x_pos, np.abs(imp_neg), width=bar_width, bottom=reg_vals + imp_neg,
+                            color='firebrick', alpha=0.7, label='Net export (negative)')
+                legend_handles.setdefault('neg', h3)
+        else:
+            color = age_colors[(age_idx + 2) % len(age_colors)]
+            vals = np.array([
+                inflow_eng.get((y, age), 0) if not inflow_eng.empty else 0
+                for y in years
+            ], dtype=float)
+
+            pos_vals = np.where(vals >= 0, vals, 0)
+            neg_vals = np.where(vals < 0, vals, 0)
+
+            h = ax.bar(x_pos, pos_vals, width=bar_width, color=color, label=f'Age {age} — used imports')
+            legend_handles.setdefault(age_idx, h)
+            if neg_vals.any():
+                ax.bar(x_pos, np.abs(neg_vals), width=bar_width, bottom=neg_vals,
+                       color='firebrick', alpha=0.7)
+
+    return x, legend_handles
+
+
+def _add_year_secondary_axis(ax, x, n_ages, bar_width, years):
+    """Add a secondary x-axis on top showing year labels, one per group centre."""
+    ax2 = ax.twiny()
+    ax2.set_xlim(ax.get_xlim())
+    # Centre of each year group
+    group_centers = [xi - 0.35 + bar_width * n_ages / 2 for xi in x]
+    ax2.set_xticks(group_centers)
+    ax2.set_xticklabels(years, fontsize=8, rotation=45, ha='left')
+    ax2.tick_params(axis='x', length=3, pad=1)
+    ax2.set_xlabel('Year', fontsize=8)
+    return ax2
+
+
+def _finalize_inflow_ax(ax, x, years, engine_type, n_ages, bar_width):
+    """Set ticks, labels, y-limit headroom on a completed inflow axis."""
+    ax.axhline(0, color='black', linewidth=0.6)
+    # Primary (bottom) axis: individual age ticks for every bar
+    age_tick_positions = [
+        xi - 0.35 + bar_width * (a + 0.5)
+        for xi in x
+        for a in range(n_ages)
+    ]
+    age_tick_labels = [str(a) for _ in x for a in range(n_ages)]
+    ax.set_xticks(age_tick_positions)
+    ax.set_xticklabels(age_tick_labels, fontsize=6)
+    ax.set_xlabel('Car age')
+    ax.set_ylabel('Number of cars')
+    ax.set_title(f'Car inflow by age and year — {engine_type}')
+    ymin, ymax = ax.get_ylim()
+    ax.set_ylim(bottom=ymin * 1.1 if ymin < 0 else 0, top=ymax * 1.1)
+    if 2024 in years and 2025 in years:
+        xi_2024 = years.index(2024)
+        xi_2025 = years.index(2025)
+        boundary = ((xi_2024 - 0.35 + bar_width * n_ages) + (xi_2025 - 0.35)) / 2
+        ax.axvline(boundary, color='grey', linestyle='--', linewidth=1.2, alpha=0.4)
+
+
+def _prep_inflow_series(new_registrations, new_car_imports, inflow_raw, engine_type):
+    try:
+        reg_eng = new_registrations.xs(engine_type, level='engine_type')
+        reg_eng.index = reg_eng.index.get_level_values('year')
+    except KeyError:
+        reg_eng = pd.Series(dtype=float)
+    try:
+        imp_eng = new_car_imports.xs(engine_type, level='engine_type')
+        imp_eng.index = imp_eng.index.get_level_values('year')
+    except KeyError:
+        imp_eng = pd.Series(dtype=float)
+    try:
+        inflow_eng = inflow_raw.xs(engine_type, level='engine_type')
+    except KeyError:
+        inflow_eng = pd.Series(dtype=float)
+    return reg_eng, imp_eng, inflow_eng
+
+
+def plot_inflow_by_age_stacked(new_registrations, new_car_imports, inflow_raw, engine_type, A=6, output_dir=OUTPUT_DIR):
+    import numpy as np
+    _ensure_dir(output_dir)
+
+    reg_eng, imp_eng, inflow_eng = _prep_inflow_series(new_registrations, new_car_imports, inflow_raw, engine_type)
+    years = sorted(set(reg_eng.index) | set(imp_eng.index))
+    n_ages = A + 1
+    bar_width = 0.7 / n_ages
+    age_colors = plt.cm.tab10.colors
+
+    fig, ax = plt.subplots(figsize=(max(8, len(years) * 1.1), 5))
+    x, legend_handles = _draw_inflow_bars(ax, reg_eng, imp_eng, inflow_eng, years, A, bar_width, age_colors)
+    _finalize_inflow_ax(ax, x, years, engine_type, n_ages, bar_width)
+    _add_year_secondary_axis(ax, x, n_ages, bar_width, years)
+    ax.legend(title='Age / type', bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=8)
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, f'inflow_age_stacked_{engine_type}.png'))
+    plt.close(fig)
+
+
+def plot_inflow_by_age_combined(new_registrations, new_car_imports, inflow_raw, A=6, output_dir=OUTPUT_DIR):
+    """Combined BEV (top) + ICEV (bottom) subplot."""
+    import numpy as np
+    _ensure_dir(output_dir)
+
+    engine_types = ['BEV', 'ICEV']
+    age_colors = plt.cm.tab10.colors
+    n_ages = A + 1
+    bar_width = 0.7 / n_ages
+
+    # Compute shared year list
+    all_years = set()
+    for et in engine_types:
+        reg_eng, imp_eng, _ = _prep_inflow_series(new_registrations, new_car_imports, inflow_raw, et)
+        all_years |= set(reg_eng.index) | set(imp_eng.index)
+    years = sorted(all_years)
+
+    fig, axes = plt.subplots(2, 1, figsize=(max(8, len(years) * 1.1), 9), sharex=False)
+
+    for ax, engine_type in zip(axes, engine_types):
+        reg_eng, imp_eng, inflow_eng = _prep_inflow_series(new_registrations, new_car_imports, inflow_raw, engine_type)
+        eng_years = sorted(set(reg_eng.index) | set(imp_eng.index))
+        x, legend_handles = _draw_inflow_bars(ax, reg_eng, imp_eng, inflow_eng, eng_years, A, bar_width, age_colors)
+        _finalize_inflow_ax(ax, x, eng_years, engine_type, n_ages, bar_width)
+        _add_year_secondary_axis(ax, x, n_ages, bar_width, eng_years)
+        ax.legend(title='Age / type', bbox_to_anchor=(1.01, 1), loc='upper left', fontsize=8)
+
+    axes[-1].set_xlabel('Car age')
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_dir, 'inflow_age_stacked_combined.png'))
+    plt.close(fig)
+
+
 def plot_scrap_profile(dis_full, scrap_profile, car_type, age_floor, n_years=6, output_dir=OUTPUT_DIR):
     _ensure_dir(output_dir)
     fig, ax = plt.subplots()
@@ -308,7 +462,7 @@ def plot_scrap_profile(dis_full, scrap_profile, car_type, age_floor, n_years=6, 
     plt.close(fig)
 
 
-def run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, new_registrations, BIL21, year=None, output_dir=OUTPUT_DIR):
+def run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, new_registrations, BIL21, new_car_imports=None, inflow_raw=None, new_registrations_indexed=None, year=None, output_dir=OUTPUT_DIR):
     """Generate all standard plots."""
     if year is None:
         year = BIL21.index.get_level_values('year').max() - 1
@@ -328,4 +482,6 @@ def run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_pr
     plot_cohort_survival(BIL21, year, output_dir=output_dir)
     for y in [2021, 2022, 2023]:
         plot_cohort_survival(BIL21, y, output_dir=output_dir)
+    if new_car_imports is not None and inflow_raw is not None and new_registrations_indexed is not None:
+        plot_inflow_by_age_combined(new_registrations_indexed, new_car_imports, inflow_raw, output_dir=output_dir)
     print(f"All plots saved to {os.path.abspath(output_dir)}")

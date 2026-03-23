@@ -9,7 +9,7 @@ def forecast(
     purchase_inflows: np.ndarray,
     model_config,
     forecast_config
-) -> dict:  
+) -> np.ndarray:  
     """
     state: (n_car_types, n_ages) current age distribution
     dis_rates: (n_forecast_years, n_car_types, n_ages) raw disappearance rates for the step year
@@ -74,18 +74,3 @@ def markov_step(
 
     return next_state
 
-if __name__ == "__main__":
-    from forecast.data_wrangler import load_data, prepare_data_for_forecast
-    data_path = 'processed_data.pkl'
-    model_config = ModelConfig()
-    forecast_config = ForecastScenarioConfig(target_year=2024)
-    data = load_data(data_path)
-    processed_data = prepare_data_for_forecast(data_path, model_config, forecast_config)
-    forecasted_distributions = forecast(
-        state=processed_data['state'],
-        dis_rates=processed_data['dis_rates'],
-        purchase_inflows=processed_data['purchase_inflows'],
-        model_config=model_config,
-        forecast_config=forecast_config
-    )
-    breakpoint()

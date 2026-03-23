@@ -168,6 +168,7 @@ def main():
     #drop isnan values
     inflow = inflow.dropna()
     inflow = inflow.drop(index=24, level='car_age')
+    inflow_raw = inflow.copy()  # keep negatives for the age-decomposition plot
     # remove negative values (net exports)
     inflow = inflow[inflow > 0]
     # only consider first 10 years
@@ -209,7 +210,7 @@ def main():
 
     # To avoid complications I will only count 1-A stock changes into purchase probabilities.
     # This means i'm not including the inflow of new cars not explained by new registrations in BIL51.
-
+    
     car_purchases = (
         pd.concat([inflow_1_to_A, new_registrations], axis=0)
         .sort_index()
@@ -241,7 +242,7 @@ def main():
     ##########################################
     ## Generate all plots                  ###
     ##########################################
-    visualisation.run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, BIL51.reset_index(), BIL21)
+    visualisation.run_all(dis_rate, holdings_dist, engine_shares_df, market_shares, ncpurch_prob, inflow, BIL51.reset_index(), BIL21, new_car_imports=new_car_imports, inflow_raw=inflow_raw, new_registrations_indexed=new_registrations)
 
     ##########################################
     ## Save processed data for later use   ###
@@ -263,3 +264,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

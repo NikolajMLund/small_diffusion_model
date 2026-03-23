@@ -7,7 +7,7 @@ are frozen at base_year values across the entire forecast horizon.
 
 from dataclasses import dataclass
 
-from forecast.base_wrangler import BaseWrangler
+from forecast.BaseScenario import BaseScenario
 
 
 @dataclass
@@ -16,7 +16,7 @@ class ConstantScenarioConfig:
     pass
 
 
-class ConstantScenario(BaseWrangler):
+class ConstantScenario(BaseScenario):
 
     def get_dis_rates(self, config: ConstantScenarioConfig=ConstantScenarioConfig()):
         return self._baseline_dis_rates()
