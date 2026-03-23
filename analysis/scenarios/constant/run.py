@@ -15,8 +15,8 @@ DATA_PATH = 'processed_data.pkl'
 
 model_config = ModelConfig()
 forecast_config = ForecastConfig(
-    base_year=2023, 
-    target_year=2024
+    base_year=2024, 
+    target_year=2030
 )
 
 data = load_data(DATA_PATH)

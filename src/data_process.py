@@ -225,7 +225,10 @@ def main():
         /denom_choice
     )
 
-
+    new_car_registrations_market_shares = (
+        new_registrations
+        / denom_choice
+    )
     ##########################################
     ## Calculate holdings distribution     ###
     ##########################################
@@ -256,6 +259,7 @@ def main():
         'market_shares': market_shares,
         'ncpurch_prob': ncpurch_prob,
         'car_purchases_market_shares': car_purchases_market_shares,
+        'new_car_registrations_market_shares': new_car_registrations_market_shares
     }
 
     with open('processed_data.pkl', 'wb') as f:

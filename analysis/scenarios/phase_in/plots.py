@@ -126,9 +126,8 @@ def plot_engine_share_over_time(market_shares, new_reg_market_shares, base_year,
 
     # New registrations only: sum over owner_type, then compute shares per year
     by_year_engine_reg = new_reg_market_shares.groupby(['year', 'engine_type']).sum()
-    total_by_year_reg = by_year_engine_reg.groupby('year').sum()
-    bev_share_reg = by_year_engine_reg.loc[idx[:, 'BEV']] / total_by_year_reg
-    icev_share_reg = by_year_engine_reg.loc[idx[:, 'ICEV']] / total_by_year_reg
+    bev_share_reg = by_year_engine_reg.loc[idx[:, 'BEV']] / total_by_year
+    icev_share_reg = by_year_engine_reg.loc[idx[:, 'ICEV']] / total_by_year
 
     bev_color = 'tab:blue'
     icev_color = 'tab:orange'

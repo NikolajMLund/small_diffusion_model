@@ -14,6 +14,8 @@ from forecast.plotting import plot_forecast_vs_actual
 from forecast.scenarios.PhaseInScenario import PhaseInScenario, PhaseInScenarioConfig
 from plots import plot_total_sales_forecast, plot_engine_share_over_time
 
+#BASE_YEAR = 2024
+#TARGET_YEAR = 2035
 BASE_YEAR = 2023
 TARGET_YEAR = 2024
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'plots')
@@ -88,7 +90,7 @@ plot_total_sales_forecast(
 # --------------------------------------------------------------
 plot_engine_share_over_time(
     market_shares=data['car_purchases_market_shares'],
-    new_reg_market_shares=data['market_shares'],
+    new_reg_market_shares=data['new_car_registrations_market_shares'],
     base_year=forecast_config.base_year,
     output_dir=DATA_PLOT_DIR,
 )
@@ -109,19 +111,22 @@ def logistic(t, k, t0):
 def logistic_restricted(t, k):
     return L / (1 + np.exp(-k * (t - 2025)))
 
-# Observed BEV share — new registrations only
-new_reg = data['market_shares']
-by_year_eng_reg = new_reg.groupby(['year', 'engine_type']).sum()
-total_reg_by_year = by_year_eng_reg.groupby('year').sum()
-bev_share_reg = (by_year_eng_reg.loc[idx[:, 'BEV']] / total_reg_by_year).dropna()
-
 # Observed BEV share — total inflow incl. implied imports
 by_year_eng_total = market_shares.groupby(['year', 'engine_type']).sum()
 total_total_by_year = by_year_eng_total.groupby('year').sum()
 bev_share_total = (by_year_eng_total.loc[idx[:, 'BEV']] / total_total_by_year).dropna()
 
+# Observed BEV share — new registrations only
+new_reg = data['new_car_registrations_market_shares']
+by_year_eng_reg = new_reg.groupby(['year', 'engine_type']).sum()
+total_reg_by_year = by_year_eng_reg.groupby('year').sum()
+bev_share_reg = (by_year_eng_reg.loc[idx[:, 'BEV']] / total_total_by_year).dropna()
+breakpoint()
+
+
 data_limit_year = 2024
 bev_share_total = bev_share_total[bev_share_total.index <= data_limit_year ]  # only fit to historical data
+bev_share_reg = bev_share_reg[bev_share_reg.index <= data_limit_year ]  # only fit to historical data
 
 years_reg   = bev_share_reg.index.values.astype(float)
 years_total = bev_share_total.index.values.astype(float)
@@ -280,7 +285,7 @@ Scenario = PhaseInScenario(
 )
 
 prepared = Scenario.prepare()
-breakpoint()
+
 forecasted_distributions = forecast(
     state=prepared['state'],
     dis_rates=prepared['dis_rates'],
