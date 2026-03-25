@@ -31,6 +31,7 @@ class BaseScenario(ABC):
         self.base_year = forecast_config.base_year
         self.target_year = forecast_config.target_year
         self.n_forecast_years = self.target_year - self.base_year
+        self.projection_years = np.arange(self.base_year + 1, self.target_year + 1)
         self.car_types = model_config.engine_types
         self.n_ages = model_config.max_car_age + 2
 
@@ -65,14 +66,14 @@ class BaseScenario(ABC):
                 dis_rates[t, i, :] = baseline
         return dis_rates
 
-    def _baseline_purchase_inflows(self) -> np.ndarray:
+    def _baseline_projected_inflows(self) -> np.ndarray:
         """
         Returns shape (n_forecast_years, n_car_types, max_purchase_age+1).
         Tiles base_year purchase shares across all forecast years.
         """
         max_purchase_age = self.model_config.purchase_age_limit
         purchase_ages = np.arange(max_purchase_age + 1)
-        purchase_inflows = np.full(
+        projected_inflows = np.full(
             (self.n_forecast_years, len(self.car_types), max_purchase_age + 1), np.nan
         )
         for i, car_type in enumerate(self.car_types):
@@ -83,8 +84,8 @@ class BaseScenario(ABC):
                 .values
             )
             for t in range(self.n_forecast_years):
-                purchase_inflows[t, i, :] = base
-        return purchase_inflows
+                projected_inflows[t, i, :] = base
+        return projected_inflows
 
     # ------------------------------------------------------------------
     # Abstract: each scenario subclass defines these
@@ -96,7 +97,7 @@ class BaseScenario(ABC):
         ...
 
     @abstractmethod
-    def get_purchase_inflows(self, config) -> np.ndarray:
+    def get_projected_inflows(self, config) -> np.ndarray:
         """Returns shape (n_forecast_years, n_car_types, max_purchase_age+1)."""
         ...
 
@@ -108,5 +109,5 @@ class BaseScenario(ABC):
         return {
             'state': self.get_state(),
             'dis_rates': self.get_dis_rates(self.scenario_config),
-            'purchase_inflows': self.get_purchase_inflows(self.scenario_config),
+            'projected_inflows': self.get_projected_inflows(self.scenario_config),
         }

@@ -29,7 +29,7 @@ def plot_total_sales_forecast(
 def plot_bev_diffusion_fit(
     all_years, bev_fit_reg, bev_fit_total,
     bev_share_reg, bev_share_total,
-    base_year, saturation, output_dir, file_name='bev_diffusion_fit.png'
+    base_year, data_limit_year, saturation, output_dir, file_name='bev_diffusion_fit.png'
 ):
     os.makedirs(output_dir, exist_ok=True)
     fig, ax = plt.subplots()
@@ -41,8 +41,8 @@ def plot_bev_diffusion_fit(
                label='Observed — incl. imports', zorder=3, marker='o', color='tab:orange')
 
     # Fitted S-curves
-    hist_mask = all_years <= base_year
-    proj_mask = all_years >= base_year
+    hist_mask = all_years <= data_limit_year
+    proj_mask = all_years >= data_limit_year
     ax.plot(all_years[hist_mask], bev_fit_reg[hist_mask], color='tab:blue', linewidth=1.5)
     ax.plot(all_years[proj_mask], bev_fit_reg[proj_mask], color='tab:blue', linewidth=1.5,
             linestyle='--', label='Logistic fit — new reg only')
@@ -53,6 +53,7 @@ def plot_bev_diffusion_fit(
     # Saturation line and base-year marker
     ax.axhline(saturation, color='grey', linestyle=':', linewidth=0.8,
                label=f'Saturation = {saturation:.0%}')
+    #ax.axvline(base_year, color='grey', linestyle=':', linewidth=0.8)
     ax.axvline(base_year, color='grey', linestyle=':', linewidth=0.8)
 
     ax.set_xlabel('Year')

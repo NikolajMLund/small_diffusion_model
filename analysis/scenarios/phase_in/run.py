@@ -17,7 +17,7 @@ from plots import plot_total_sales_forecast, plot_engine_share_over_time
 #BASE_YEAR = 2024
 #TARGET_YEAR = 2035
 BASE_YEAR = 2023
-TARGET_YEAR = 2024
+TARGET_YEAR = 2035
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'plots')
 DATA_PATH = 'processed_data.pkl'
 
@@ -125,19 +125,19 @@ breakpoint()
 
 
 data_limit_year = 2024
-bev_share_total = bev_share_total[bev_share_total.index <= data_limit_year ]  # only fit to historical data
-bev_share_reg = bev_share_reg[bev_share_reg.index <= data_limit_year ]  # only fit to historical data
+bev_share_total_est = bev_share_total[bev_share_total.index <= data_limit_year ]  # only fit to data prior to the limit year
+bev_share_reg_est = bev_share_reg[bev_share_reg.index <= data_limit_year ]  # only fit to data prior to the limit year
 
-years_reg   = bev_share_reg.index.values.astype(float)
-years_total = bev_share_total.index.values.astype(float)
-popt_reg, _   = curve_fit(logistic, years_reg,   bev_share_reg.values,
+years_reg   = bev_share_reg_est.index.values.astype(float)
+years_total = bev_share_total_est.index.values.astype(float)
+popt_reg, _   = curve_fit(logistic, years_reg,   bev_share_reg_est.values,
                            p0=[0.4, 2025], bounds=([0.01, 2015], [5.0, 2032]))
-popt_total, _ = curve_fit(logistic, years_total, bev_share_total.values,
+popt_total, _ = curve_fit(logistic, years_total, bev_share_total_est.values,
                            p0=[0.4, 2025], bounds=([0.01, 2015], [5.0, 2032]))
 
-popt_reg_manual_inflection, _   = curve_fit(logistic_restricted, years_reg,   bev_share_reg.values,
+popt_reg_manual_inflection, _   = curve_fit(logistic_restricted, years_reg,   bev_share_reg_est.values,
                            p0=[0.4,], bounds=([0.01], [5.0,]))
-popt_total_manual_inflection, _ = curve_fit(logistic_restricted, years_total, bev_share_total.values,
+popt_total_manual_inflection, _ = curve_fit(logistic_restricted, years_total, bev_share_total_est.values,
                            p0=[0.4,], bounds=([0.01], [5.0]))
 
 
@@ -162,6 +162,7 @@ plot_bev_diffusion_fit(
     bev_share_reg=bev_share_reg,
     bev_share_total=bev_share_total,
     base_year=forecast_config.base_year,
+    data_limit_year=data_limit_year,
     saturation=L,
     output_dir=DATA_PLOT_DIR,
     file_name = 'bev_diffusion_fit.png'
@@ -174,6 +175,7 @@ plot_bev_diffusion_fit(
     bev_share_reg=bev_share_reg,
     bev_share_total=bev_share_total,
     base_year=forecast_config.base_year,
+    data_limit_year=data_limit_year,
     saturation=L,
     output_dir=DATA_PLOT_DIR,
     file_name = 'bev_diffusion_fit_2025_inflection.png'
@@ -187,7 +189,7 @@ predicted_market_shares = np.full(
         ), 
         fill_value=np.nan
 )
-predicted_inflow = predicted_market_shares.copy()
+projected_inflows = predicted_market_shares.copy()
 
 # BEV inflows (as a share of total sales)
 # Predicted inflow - new registrations 
@@ -255,18 +257,13 @@ for i, engine_type in enumerate(model_config.engine_types):
 
 assert np.all(np.isclose(predicted_market_shares.sum(axis=(1,2)), 1.0)), 'should sum to 1 in each year (at this stage)'
 
-predicted_inflow[...] = predicted_market_shares * projected_sales[:, np.newaxis, np.newaxis]
+projected_inflows[...] = predicted_market_shares * projected_sales[:, np.newaxis, np.newaxis]
 
 # This should give us the schedule we are looking for. 
 
 # Create a plot of that age distribution, to sanity check it and to communicate assumptions.
 ## Plot that shows what happens in the forecast under these assumptions, showing the age distribution and the size of the inflows.
 ## A plot that shows the inflow of cars over the projected horizon. - Stacked maybe
-
-
-
-
-
 
 # ---------------------------------------------------------------
 # Packing scenario config
@@ -289,10 +286,12 @@ prepared = Scenario.prepare()
 forecasted_distributions = forecast(
     state=prepared['state'],
     dis_rates=prepared['dis_rates'],
-    purchase_inflows=prepared['purchase_inflows'],
+    purchase_inflows=prepared['projected_inflows'],
     model_config=model_config,
     forecast_config=forecast_config,
 )
+
+Scenario.plot_all(output_dir=SCENARIO_PLOT_DIR, forecasted_distributions=forecasted_distributions)
 
 plot_forecast_vs_actual(
     forecasted_distributions=forecasted_distributions,
