@@ -535,12 +535,12 @@ def plot_scrap_profile(dis_full, scrap_profile, car_type, age_floor, n_years=6, 
     dis_ct = dis_full.xs(car_type, level='engine_type')
     years = dis_ct.index.get_level_values('year').unique()[-n_years:]
     for year in years:
-        try:
+#        try:
             data = dis_ct.loc[year]
             ax.plot(data.index.get_level_values('car_age'), data.values,
                     color='steelblue', alpha=0.4, linewidth=1)
-        except KeyError:
-            pass
+#        except KeyError:
+#            pass
 
     ax.plot(scrap_profile.index, scrap_profile.values,
             color='firebrick', linewidth=2, label='Model fit')
