@@ -65,6 +65,7 @@ def markov_step(
     n_ages : int
     """
     age_step_matrix = np.eye(model_config.max_car_age+2, k=-1) # +2 to account for age 0 and the forced scrappage age
+    age_step_matrix[-1,-1] = 1 # Default is that cars stay in the economy forever
 
     survival_matrix = (1 - dis_rates) * age_step_matrix
 
