@@ -7,3 +7,4 @@ class ModelConfig:
     max_car_age: int = 24
     engine_types: list[str] = field(default_factory=lambda: ['ICEV', 'BEV'])
     purchase_age_limit: int = 6
+    synthetic_engine_types: list[str] = field(default_factory=list)

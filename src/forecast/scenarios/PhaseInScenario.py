@@ -66,6 +66,9 @@ class PhaseInScenario(BaseScenario):
 
         return projected_inflows
 
+    def get_state(self, config: PhaseInScenarioConfig):
+        return self._baseline_get_state()
+
     def get_dis_rates(self, config: PhaseInScenarioConfig) -> np.ndarray:
         return self._baseline_dis_rates()
 
@@ -116,7 +119,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_total_inflow.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_projected_used_car_sales(self, output_dir: str | None = None):
@@ -171,7 +174,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_used_car_sales.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_projected_new_registrations(self, output_dir: str | None = None):
@@ -215,7 +218,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_new_registrations.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_projected_inflows(self, output_dir: str | None = None):
@@ -265,7 +268,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_inflows.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_inflow_by_engine_type(self, output_dir: str | None = None):
@@ -302,7 +305,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'inflow_by_engine_type.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_fleet_composition(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
@@ -342,7 +345,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'fleet_composition.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_total_fleet_stock(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
@@ -379,7 +382,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'total_fleet_stock.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_engine_share_of_total_inflow(self, output_dir: str | None = None):
@@ -422,7 +425,7 @@ class PhaseInScenario(BaseScenario):
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'engine_share_of_total_inflow.png'),
                         dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_fleet_age_distribution(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
@@ -448,7 +451,7 @@ class PhaseInScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'fleet_age_distribution.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_all(self, output_dir: str | None = None, forecasted_distributions: np.ndarray | None = None) -> None:

@@ -35,4 +35,4 @@ def plot_forecast_vs_actual(
     plt.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     plt.savefig(os.path.join(output_dir, file_name))
-    plt.show()
+    plt.close()

@@ -8,7 +8,7 @@ preserving the within-type age distribution shape from the base year.
 
 import os
 from dataclasses import dataclass
-
+from pandas import IndexSlice as idx
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -22,7 +22,7 @@ class KFScenarioConfig:
     """
     projected_sales : np.ndarray       #  (n_forecast_years,) - total number of cars flowing in each year
     market_shares: np.ndarray          # (n_forecast_years, len(engine_types), max_purchase_age + 1)
-
+    n_oldcars: float                   # scalar that sets the number of "old" cars. 
 class KFScenario(BaseScenario):
 
     alpha_hist: float = 0.4  # opacity for historical (≤ base_year) data in plots
@@ -66,6 +66,19 @@ class KFScenario(BaseScenario):
 
         return projected_inflows
 
+    def get_state(self, config: KFScenarioConfig) -> np.ndarray:
+        """Custom method to accomodate the 'Old' cars category"""
+        holdings_dist = self.data['holdings_dist']
+        state = np.full((len(self.car_types), self.n_ages), np.nan)
+        for i, car_type in enumerate(self.car_types):
+            if car_type == 'Old':
+                state[i, :] = 0.0
+                state[i, -1] = config.n_oldcars
+            else:
+                state[i, :] = holdings_dist.loc[self.base_year, car_type, :].values
+        return state
+
+
     def get_dis_rates(self, config: KFScenarioConfig) -> np.ndarray:
         """Custom method to accomodate the old cars category"""
         ages = np.arange(self.n_ages)
@@ -74,11 +87,10 @@ class KFScenario(BaseScenario):
             (self.n_forecast_years, len(self.car_types), self.n_ages), np.nan
         )
         for i, car_type in enumerate(self.car_types):
-            for t in range(self.n_forecast_years):
-                dis_rates[t, i, :] = baseline
+            dis_rates[:, i, :] = baseline
             if car_type == 'Old':
-                dis_rates[-1,i, -1] = 0.0 # Oldies cannot disappear. 
-        
+                dis_rates[:, i, :] = 0.0 # Oldies cannot disappear. 
+            
         return dis_rates
 
 
@@ -89,22 +101,34 @@ class KFScenario(BaseScenario):
     # Historical data helpers
     # ------------------------------------------------------------------
 
+    @property
+    def _hist_engine_types(self) -> list[str]:
+        """Engine types present in real data (excludes synthetic types like 'Old')."""
+        synthetic = self.model_config.synthetic_engine_types
+        return [e for e in self.car_types if e not in synthetic]
+
     def _hist_inflows(self):
         """
-        Returns car_purchases_market_shares for years <= base_year.
+        Returns car_purchases_market_shares for years <= base_year, excluding synthetic engine types.
         Multi-index: (year, engine_type, car_age).  Values are absolute counts.
         """
         ms = self.data['car_purchases_market_shares']
-        mask = ms.index.get_level_values('year') <= self.base_year
+        mask = (
+            (ms.index.get_level_values('year') <= self.base_year) &
+            (ms.index.get_level_values('engine_type').isin(self._hist_engine_types))
+        )
         return ms[mask]
 
     def _hist_fleet(self):
         """
-        Returns holdings_dist summed over car ages for years <= base_year.
+        Returns holdings_dist summed over car ages for years <= base_year, excluding synthetic engine types.
         Result indexed by (year, engine_type).  Values are absolute fleet counts.
         """
         hd = self.data['holdings_dist']
-        mask = hd.index.get_level_values('year') <= self.base_year
+        mask = (
+            (hd.index.get_level_values('year') <= self.base_year) &
+            (hd.index.get_level_values('engine_type').isin(self._hist_engine_types))
+        )
         return hd[mask].groupby(['year', 'engine_type']).sum()
 
     # ------------------------------------------------------------------
@@ -129,7 +153,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_total_inflow.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_projected_used_car_sales(self, output_dir: str | None = None):
@@ -153,16 +177,17 @@ class KFScenario(BaseScenario):
 
             # historical bars
             bottom_h = np.zeros(len(hist_years))
-            eng_hist = hist_ages1plus.xs(engine, level='engine_type')
-            for j, age in enumerate(ages):
-                try:
-                    vals_h = (eng_hist.xs(age, level='car_age')
-                                      .reindex(hist_years, fill_value=0)
-                                      .values / hist_total_by_year.values)
-                except KeyError:
-                    vals_h = np.zeros(len(hist_years))
-                ax.bar(hist_years, vals_h, bottom=bottom_h, color=cmap(age), alpha=self.alpha_hist)
-                bottom_h += vals_h
+            if engine not in self.model_config.synthetic_engine_types:
+                eng_hist = hist_ages1plus.xs(engine, level='engine_type')
+                for j, age in enumerate(ages):
+                    try:
+                        vals_h = (eng_hist.xs(age, level='car_age')
+                                          .reindex(hist_years, fill_value=0)
+                                          .values / hist_total_by_year.values)
+                    except KeyError:
+                        vals_h = np.zeros(len(hist_years))
+                    ax.bar(hist_years, vals_h, bottom=bottom_h, color=cmap(age), alpha=self.alpha_hist)
+                    bottom_h += vals_h
 
             # projection bars
             bottom = np.zeros(len(self.projection_years))
@@ -184,7 +209,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_used_car_sales.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_projected_new_registrations(self, output_dir: str | None = None):
@@ -204,15 +229,16 @@ class KFScenario(BaseScenario):
 
         for i, engine in enumerate(engine_types):
             # historical bars
-            try:
-                vals_h = (hist_age0.xs(engine, level='engine_type')
-                                   .droplevel('car_age')
-                                   .reindex(hist_years, fill_value=0)
-                                   .values / hist_total_by_year.values)
-            except KeyError:
-                vals_h = np.zeros(len(hist_years))
-            ax.bar(hist_years + offsets[i], vals_h, width=width,
-                   color=colors[i % len(colors)], alpha=self.alpha_hist)
+            if engine not in self.model_config.synthetic_engine_types:
+                try:
+                    vals_h = (hist_age0.xs(engine, level='engine_type')
+                                       .droplevel('car_age')
+                                       .reindex(hist_years, fill_value=0)
+                                       .values / hist_total_by_year.values)
+                except KeyError:
+                    vals_h = np.zeros(len(hist_years))
+                ax.bar(hist_years + offsets[i], vals_h, width=width,
+                       color=colors[i % len(colors)], alpha=self.alpha_hist)
 
             # projection bars
             new_reg = market_shares[:, i, 0]
@@ -228,7 +254,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_new_registrations.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_projected_inflows(self, output_dir: str | None = None):
@@ -246,17 +272,18 @@ class KFScenario(BaseScenario):
 
         for ax, (i, engine) in zip(axes, enumerate(engine_types)):
             # historical bars
-            eng_hist = hist.xs(engine, level='engine_type')
             bottom_h = np.zeros(len(hist_years))
-            for age in range(n_ages):
-                try:
-                    vals_h = (eng_hist.xs(age, level='car_age')
-                                      .reindex(hist_years, fill_value=0)
-                                      .values)
-                except KeyError:
-                    vals_h = np.zeros(len(hist_years))
-                ax.bar(hist_years, vals_h, bottom=bottom_h, color=cmap(age), alpha=self.alpha_hist)
-                bottom_h += vals_h
+            if engine not in self.model_config.synthetic_engine_types:
+                eng_hist = hist.xs(engine, level='engine_type')
+                for age in range(n_ages):
+                    try:
+                        vals_h = (eng_hist.xs(age, level='car_age')
+                                          .reindex(hist_years, fill_value=0)
+                                          .values)
+                    except KeyError:
+                        vals_h = np.zeros(len(hist_years))
+                    ax.bar(hist_years, vals_h, bottom=bottom_h, color=cmap(age), alpha=self.alpha_hist)
+                    bottom_h += vals_h
 
             # projection bars
             bottom = np.zeros(len(self.projection_years))
@@ -278,7 +305,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'projected_inflows.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_inflow_by_engine_type(self, output_dir: str | None = None):
@@ -315,7 +342,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'inflow_by_engine_type.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_fleet_composition(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
@@ -355,11 +382,12 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'fleet_composition.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_total_fleet_stock(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
         fleet = forecasted_distributions.sum(axis=2)  # (n_years, 2)
+        breakpoint()
         engine_types = self.model_config.engine_types
         colors = {'ICEV': 'tab:orange', 'BEV': 'tab:blue'}
 
@@ -392,7 +420,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'total_fleet_stock.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_engine_share_of_total_inflow(self, output_dir: str | None = None):
@@ -410,15 +438,16 @@ class KFScenario(BaseScenario):
         hist_years = hist_total_by_year.index
 
         for i, engine in enumerate(engine_types):
-            try:
-                vals_h = (hist.xs(engine, level='engine_type')
-                              .groupby('year').sum()
-                              .reindex(hist_years, fill_value=0)
-                              .values / hist_total_by_year.values)
-            except KeyError:
-                vals_h = np.zeros(len(hist_years))
-            ax.bar(hist_years + offsets[i], vals_h, width=width,
-                   color=colors[i % len(colors)], alpha=self.alpha_hist)
+            if engine not in self.model_config.synthetic_engine_types:
+                try:
+                    vals_h = (hist.xs(engine, level='engine_type')
+                                  .groupby('year').sum()
+                                  .reindex(hist_years, fill_value=0)
+                                  .values / hist_total_by_year.values)
+                except KeyError:
+                    vals_h = np.zeros(len(hist_years))
+                ax.bar(hist_years + offsets[i], vals_h, width=width,
+                       color=colors[i % len(colors)], alpha=self.alpha_hist)
 
             # projection: sum over all ages for this engine
             proj_share = market_shares[:, i, :].sum(axis=1)
@@ -435,7 +464,7 @@ class KFScenario(BaseScenario):
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'engine_share_of_total_inflow.png'),
                         dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_fleet_age_distribution(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
@@ -461,7 +490,7 @@ class KFScenario(BaseScenario):
         if output_dir is not None:
             os.makedirs(output_dir, exist_ok=True)
             fig.savefig(os.path.join(output_dir, 'fleet_age_distribution.png'), dpi=150, bbox_inches='tight')
-        plt.show()
+        plt.close()
         return fig
 
     def plot_all(self, output_dir: str | None = None, forecasted_distributions: np.ndarray | None = None) -> None:

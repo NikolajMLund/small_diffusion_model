@@ -23,6 +23,9 @@ class ConstantScenario(BaseScenario):
         self.projected_inflows = self.get_projected_inflows(scenario_config)
         self.dis_rates = self.get_dis_rates(scenario_config)
 
+    def get_state(self, config: ConstantScenarioConfig=ConstantScenarioConfig()):
+        return self._baseline_get_state()
+
     def get_dis_rates(self, config: ConstantScenarioConfig=ConstantScenarioConfig()):
         return self._baseline_dis_rates()
 

@@ -35,21 +35,20 @@ class BaseScenario(ABC):
         self.car_types = model_config.engine_types
         self.n_ages = model_config.max_car_age + 2
 
-    # ------------------------------------------------------------------
-    # Concrete: initial state is always historical holdings at base_year
-    # ------------------------------------------------------------------
 
-    def get_state(self) -> np.ndarray:
-        """Returns shape (n_car_types, n_ages)."""
+    # ------------------------------------------------------------------
+    # Protected helpers — reusable baselines for subclass methods
+    # ------------------------------------------------------------------
+    def _baseline_get_state(self) -> np.ndarray:
+        """
+        Method selects the baseline holdings dist as the basis for forecasting.
+        Returns shape (n_car_types, n_ages).
+        """
         holdings_dist = self.data['holdings_dist']
         state = np.full((len(self.car_types), self.n_ages), np.nan)
         for i, car_type in enumerate(self.car_types):
             state[i, :] = holdings_dist.loc[self.base_year, car_type, :].values
         return state
-
-    # ------------------------------------------------------------------
-    # Protected helpers — reusable baselines for subclass methods
-    # ------------------------------------------------------------------
 
     def _baseline_dis_rates(self) -> np.ndarray:
         """
@@ -90,6 +89,10 @@ class BaseScenario(ABC):
     # ------------------------------------------------------------------
     # Abstract: each scenario subclass defines these
     # ------------------------------------------------------------------
+    @abstractmethod
+    def get_state(self, config) -> np.ndarray:
+        """Returns shape (n_car_types, n_ages)."""
+        ...
 
     @abstractmethod
     def get_dis_rates(self, config) -> np.ndarray:
@@ -101,13 +104,14 @@ class BaseScenario(ABC):
         """Returns shape (n_forecast_years, n_car_types, max_purchase_age+1)."""
         ...
 
+
     # ------------------------------------------------------------------
     # Convenience: assembles the dict expected by core.forecast()
     # ------------------------------------------------------------------
 
     def prepare(self) -> dict:
         return {
-            'state': self.get_state(),
+            'state': self.get_state(self.scenario_config),
             'dis_rates': self.get_dis_rates(self.scenario_config),
             'projected_inflows': self.get_projected_inflows(self.scenario_config),
         }

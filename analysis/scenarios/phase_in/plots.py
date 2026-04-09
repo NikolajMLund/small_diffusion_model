@@ -57,7 +57,7 @@ def plot_kf_stock_total(
     fig.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
 def plot_kf_stock_by_engine(
@@ -104,7 +104,7 @@ def plot_kf_stock_by_engine(
     fig.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
 def plot_kf_inflow(
@@ -143,7 +143,7 @@ def plot_kf_inflow(
     fig.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
 def plot_kf_inflow_by_engine(
@@ -190,7 +190,7 @@ def plot_kf_inflow_by_engine(
     fig.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
 def plot_kf_stock_difference(
@@ -243,7 +243,7 @@ def plot_kf_stock_difference(
     fig.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
 def plot_kf_stock_difference_total(
@@ -289,18 +289,18 @@ def plot_kf_stock_difference_total(
     fig.tight_layout()
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
-def plot_total_sales_forecast(
-    historical_years, y, sales_forecast,
+def plot_total_regression_fit(
+    historical_years, y, regression_fit,
     projection_years, sales_projection, actual_car_sales,
     base_year, output_dir,
 ):
     os.makedirs(output_dir, exist_ok=True)
     fig, ax = plt.subplots()
     ax.scatter(actual_car_sales.index.values, actual_car_sales.values, label='Raw data', zorder=3)
-    ax.plot(historical_years, sales_forecast, label='Regression fit')
+    ax.plot(historical_years, regression_fit, label='Regression fit')
     ax.plot(projection_years, sales_projection, linestyle='--', label='Projection')
     ax.scatter(projection_years, sales_projection, zorder=3)
     ax.axvline(base_year, color='grey', linestyle=':', linewidth=0.8)
@@ -309,8 +309,8 @@ def plot_total_sales_forecast(
     ax.set_title('Total new car sales: regression fit and projection\n'
                  'Includes new registrations + implied imports (age 1–6 stock changes); excludes exports')
     ax.legend()
-    fig.savefig(os.path.join(output_dir, 'total_sales_forecast.png'), dpi=150, bbox_inches='tight')
-    plt.show()
+    fig.savefig(os.path.join(output_dir, 'total_regression_fit.png'), dpi=150, bbox_inches='tight')
+    plt.close()
 
 
 def plot_bev_diffusion_fit(
@@ -350,7 +350,7 @@ def plot_bev_diffusion_fit(
     ax.set_ylim(0, 1)
     ax.legend()
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 def plot_age_distribution_of_inflows(car_purchases_market_shares, base_year, output_dir):
     os.makedirs(output_dir, exist_ok=True)
@@ -389,7 +389,7 @@ def plot_age_distribution_of_inflows(car_purchases_market_shares, base_year, out
                  'Inferred from stock changes; excludes exports')
     fig.tight_layout(rect=(0, 0.06, 1, 1))
     fig.savefig(os.path.join(output_dir, 'age_dist_imports.png'), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 
 def plot_engine_share_over_time(market_shares, new_reg_market_shares, base_year, output_dir):
@@ -445,6 +445,6 @@ def plot_engine_share_over_time(market_shares, new_reg_market_shares, base_year,
     ax.set_title('BEV/ICEV share of car purchases incl. imports.')
     ax.legend()
     fig.savefig(os.path.join(output_dir, 'engine_share_over_time.png'), dpi=150, bbox_inches='tight')
-    plt.show()
+    plt.close()
 
 

@@ -12,6 +12,7 @@ dependencies = [
     "matplotlib",
     "requests",
     "statsmodels",
+    "openpyxl",
 ]
 
 [project.optional-dependencies]

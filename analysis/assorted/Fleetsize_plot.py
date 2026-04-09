@@ -141,4 +141,3 @@ for xscale, yscale, fname in [
     plt.savefig(f'analysis/assorted/{fname}', dpi=150)
     plt.close()
 
-breakpoint()

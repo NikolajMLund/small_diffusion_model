@@ -1,5 +1,7 @@
 import os
 import sys
+import matplotlib
+matplotlib.use('Agg')
 
 import numpy as np
 import pandas as pd
@@ -13,8 +15,12 @@ from forecast.ForecastConfig import ForecastConfig
 from forecast.data_wrangler import load_data
 from forecast.core import forecast
 from forecast.plotting import plot_forecast_vs_actual
-from forecast.scenarios.PhaseInScenario import PhaseInScenario, PhaseInScenarioConfig
-from plots import plot_total_sales_forecast, plot_engine_share_over_time
+from forecast.scenarios.KFScenario import KFScenario, KFScenarioConfig
+from plots import (
+    plot_total_regression_fit, 
+    plot_engine_share_over_time,
+    wrangle_kf_to_engine_types,
+)
 
 #BASE_YEAR = 2024
 #TARGET_YEAR = 2035
@@ -30,10 +36,11 @@ from data_import import import_FAM55N
 FAM55N = import_FAM55N()
 #FIXTHIS: Should just be part of the dta imported. 
 denom_choice = 2 * FAM55N[FAM55N['TID'] == 2020]['INDHOLD'].values[0]
-noldcars = 72_000
+n_oldcars = 72_000
 
 model_config = ModelConfig(
     engine_types = ['BEV', 'ICEV', 'Old'],
+    synthetic_engine_types = ['Old'],
 )
 
 forecast_config = ForecastConfig(
@@ -57,63 +64,55 @@ for key in ['car_purchases_market_shares', 'new_car_registrations_market_shares'
 
 # ------------------------------
 # Cars Sold Schedule (total number of cars flowing in each year)
+# We use KF 2025 to match the stock going in each year. 
 # ------------------------------
 
+bestand = pd.read_excel('./analysis/data_kf/KF25 Transport Extract.xlsx', sheet_name='Bestand')
+salg    = pd.read_excel('./analysis/data_kf/KF25 Transport Extract.xlsx', sheet_name='Salg')
+
+bestand = bestand.rename(columns={'Unnamed: 0': 'year'}).set_index('year')
+salg    = salg.rename(columns={'Unnamed: 0': 'year'}).set_index('year')
+
+# KF bestand is "ultimo" (31 Dec), model is "primo" (1 Jan).
+# Shift bestand years forward by 1 so KF end-of-Y aligns with model start-of-(Y+1).
+# Salg (inflow) is not shifted — it represents activity during year Y in both conventions.
+bestand.index = bestand.index + 1
+
+KF_ENGINE_MAP_BESTAND = {
+    'El':             'BEV',
+    'Diesel':         'ICEV',
+    'Benzin':         'ICEV',
+    'Plug-in Hybrid': 'ICEV',
+    'Øvrige':         'ICEV',
+}
+
+KF_ENGINE_MAP_SALG = {
+    'El':             'BEV',
+    'Diesel':         'ICEV',
+    'Benzin':         'ICEV',
+    'Plug-in Hybrid': 'ICEV',
+    #'Øvrige':         'ICEV',
+}
+
+bestand = wrangle_kf_to_engine_types(bestand, KF_ENGINE_MAP_BESTAND)
+salg = wrangle_kf_to_engine_types(salg, KF_ENGINE_MAP_SALG)
+
 market_shares = data['car_purchases_market_shares']
-infer_sales_year = np.arange(
-    market_shares.index.get_level_values('year').min(),
-    forecast_config.base_year + 1 
-)
 
-new_car_sales=market_shares.groupby('year').sum().loc[infer_sales_year]
-actual_car_sales=market_shares.groupby('year').sum()
-
-# regression to extrapolate sales into forecast horizon
-from statsmodels.regression.linear_model import OLS
-import statsmodels.api as sm
-
-x = np.arange(-len(new_car_sales), 0) + 1
-x = sm.add_constant(x)
-
-# Year-specific dummies for 2020-2023 (covid disruption + supply-chain effects).
-# These are included in the fit but NOT carried into the projection.
-dummy_years = [2020, 2021, 2022, 2023]
-for yr in dummy_years:
-    dummy = (infer_sales_year == yr).astype(float)
-    x = np.column_stack([x, dummy])
-
-y = new_car_sales.values
-model = OLS(y, x)
-model_fit = model.fit()
-sales_forecast = model_fit.predict(x)
-print(model_fit.summary())
-
-# Plot raw data, regression fit, and projection into forecast horizon
-historical_years = infer_sales_year  # calendar years for observed data
 projection_years = np.arange(forecast_config.base_year + 1, forecast_config.target_year + 1)
-x_proj = (projection_years - forecast_config.base_year)
-x_proj = sm.add_constant(x_proj, has_constant='add')
 
-x_proj=np.column_stack([x_proj,np.zeros((x_proj.shape[0], len(dummy_years)))])
+bestand_to_match = bestand / denom_choice
 
+# The goal is to get projected sales such that it matches bestand 
+# The challenge is that we have to add the amount of cars needed to match bestand in each year, after disappearances.
+# This creates a chicken and egg problem because I have written the code to take inflow as given and then compute the distribution. 
+#projected_sales
 
-# Dummies are zero for all projection years (not carried into forecast)
-projected_sales = model_fit.predict(x_proj)
+breakpoint()
 
 DATA_PLOT_DIR = os.path.join(OUTPUT_DIR, 'data')
 SCENARIO_PLOT_DIR = os.path.join(OUTPUT_DIR, 'scenario')
 COMPARISON_PLOT_DIR = os.path.join(OUTPUT_DIR, 'comparison')
-
-plot_total_sales_forecast(
-    historical_years=historical_years,
-    y=y,
-    sales_forecast=sales_forecast,
-    actual_car_sales=actual_car_sales,
-    projection_years=projection_years,
-    sales_projection=projected_sales,
-    base_year=forecast_config.base_year,
-    output_dir=DATA_PLOT_DIR,
-)
 
 # --------------------------------------------------------------
 # BEV/ICEV split of purchases
@@ -281,7 +280,7 @@ for i, engine_type in enumerate(model_config.engine_types):
     elif engine_type == 'ICEV':
         predicted_market_shares[:,i,1:] = 0.0
         predicted_market_shares[:,i,0] = predicted_market_shares_of_icevs
-    elif engine_type == 'Olds':
+    elif engine_type == 'Old':
         predicted_market_shares[:,i,:] = 0.0
 
 assert np.all(np.isclose(predicted_market_shares.sum(axis=(1,2)), 1.0)), 'should sum to 1 in each year (at this stage)'
@@ -298,12 +297,13 @@ projected_inflows[...] = predicted_market_shares * projected_sales[:, np.newaxis
 # Packing scenario config
 # ---------------------------------------------------------------
 
-scenario_config = PhaseInScenarioConfig(
+scenario_config = KFScenarioConfig(
     market_shares=predicted_market_shares,
-    projected_sales=projected_sales
+    projected_sales=projected_sales,
+    n_oldcars=n_oldcars/denom_choice,
 )
 
-Scenario = PhaseInScenario(
+Scenario = KFScenario(
     data=data,
     model_config=model_config,
     forecast_config=forecast_config,
@@ -311,12 +311,6 @@ Scenario = PhaseInScenario(
 )
 
 prepared = Scenario.prepare()
-
-# manually overwriting depreciation rates for OLDS
-# and adding them each year
-projected_inflows[:,2,1]= noldcars / denom_choice
-
-breakpoint()
 
 
 forecasted_distributions = forecast(
@@ -346,36 +340,6 @@ plot_forecast_vs_actual(
 # Read in data
 from plots import wrangle_kf_to_engine_types, plot_kf_stock_total, plot_kf_stock_by_engine, plot_kf_inflow, plot_kf_inflow_by_engine, plot_kf_stock_difference, plot_kf_stock_difference_total
 
-bestand = pd.read_excel('./analysis/data_kf/KF25 Transport Extract.xlsx', sheet_name='Bestand')
-salg    = pd.read_excel('./analysis/data_kf/KF25 Transport Extract.xlsx', sheet_name='Salg')
-
-bestand = bestand.rename(columns={'Unnamed: 0': 'year'}).set_index('year')
-salg    = salg.rename(columns={'Unnamed: 0': 'year'}).set_index('year')
-
-# KF bestand is "ultimo" (31 Dec), model is "primo" (1 Jan).
-# Shift bestand years forward by 1 so KF end-of-Y aligns with model start-of-(Y+1).
-# Salg (inflow) is not shifted — it represents activity during year Y in both conventions.
-bestand.index = bestand.index + 1
-
-KF_ENGINE_MAP_BESTAND = {
-    'El':             'BEV',
-    'Diesel':         'ICEV',
-    'Benzin':         'ICEV',
-    'Plug-in Hybrid': 'ICEV',
-    'Øvrige':         'ICEV',
-}
-
-KF_ENGINE_MAP_SALG = {
-    'El':             'BEV',
-    'Diesel':         'ICEV',
-    'Benzin':         'ICEV',
-    'Plug-in Hybrid': 'ICEV',
-    #'Øvrige':         'ICEV',
-}
-
-
-bestand = wrangle_kf_to_engine_types(bestand, KF_ENGINE_MAP_BESTAND)
-salg = wrangle_kf_to_engine_types(salg, KF_ENGINE_MAP_SALG)
 
 def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_choice):
     """
@@ -392,8 +356,15 @@ def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_cho
     engine_types = list(model_config.engine_types)
 
     def extract(series, years, engine_types):
+        def safe_get(series, y, et):
+            try:
+                return series.loc[y, et]
+            except KeyError as e:
+                if e.args[0] not in model_config.synthetic_engine_types:
+                    raise
+                return 0.0
         return np.array([
-            [series.loc[y, et] for et in engine_types]
+            [safe_get(series, y, et) for et in engine_types]
             for y in years
         ]) / denom_choice  # → (n_periods, n_engine_types), same scale as model
 

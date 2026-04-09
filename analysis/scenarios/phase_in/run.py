@@ -13,7 +13,7 @@ from forecast.data_wrangler import load_data
 from forecast.core import forecast
 from forecast.plotting import plot_forecast_vs_actual
 from forecast.scenarios.PhaseInScenario import PhaseInScenario, PhaseInScenarioConfig
-from plots import plot_total_sales_forecast, plot_engine_share_over_time
+from plots import plot_total_regression_fit, plot_engine_share_over_time
 
 #BASE_YEAR = 2024
 #TARGET_YEAR = 2035
@@ -72,7 +72,7 @@ y = new_car_sales.values
 model = OLS(y, x)
 # add constant to x for intercept
 model_fit = model.fit()
-sales_forecast = model_fit.predict(x)
+regression_fit = model_fit.predict(x)
 print(model_fit.summary())
 
 # Plot raw data, regression fit, and projection into forecast horizon
@@ -88,10 +88,10 @@ DATA_PLOT_DIR = os.path.join(OUTPUT_DIR, 'data')
 SCENARIO_PLOT_DIR = os.path.join(OUTPUT_DIR, 'scenario')
 COMPARISON_PLOT_DIR = os.path.join(OUTPUT_DIR, 'comparison')
 
-plot_total_sales_forecast(
+plot_total_regression_fit(
     historical_years=historical_years,
     y=y,
-    sales_forecast=sales_forecast,
+    regression_fit=regression_fit,
     actual_car_sales = actual_car_sales,
     projection_years=projection_years,
     sales_projection=projected_sales,
@@ -470,4 +470,3 @@ plot_kf_stock_difference_total(
     output_dir=COMPARISON_PLOT_DIR,
 )
 
-breakpoint()
