@@ -108,8 +108,6 @@ bestand_to_match = bestand / denom_choice
 # This creates a chicken and egg problem because I have written the code to take inflow as given and then compute the distribution. 
 #projected_sales
 
-breakpoint()
-
 DATA_PLOT_DIR = os.path.join(OUTPUT_DIR, 'data')
 SCENARIO_PLOT_DIR = os.path.join(OUTPUT_DIR, 'scenario')
 COMPARISON_PLOT_DIR = os.path.join(OUTPUT_DIR, 'comparison')
@@ -284,6 +282,43 @@ for i, engine_type in enumerate(model_config.engine_types):
         predicted_market_shares[:,i,:] = 0.0
 
 assert np.all(np.isclose(predicted_market_shares.sum(axis=(1,2)), 1.0)), 'should sum to 1 in each year (at this stage)'
+
+# ---------------------------------------------------------------
+# Derive projected_sales by inverting the Markov model to match KF25 stock
+# ---------------------------------------------------------------
+from forecast.core import markov_step
+
+ages = np.arange(model_config.max_car_age + 2)
+scrap_profile = data['scrap_profile'].reindex(ages, fill_value=0).values
+age_step_matrix = np.eye(model_config.max_car_age + 2, k=-1)
+age_step_matrix[-1, -1] = 1
+survival_matrix = (1 - scrap_profile) * age_step_matrix
+
+# Build initial state (mirrors KFScenario.get_state)
+inversion_state = np.full((len(model_config.engine_types), model_config.max_car_age + 2), np.nan)
+for i, car_type in enumerate(model_config.engine_types):
+    if car_type == 'Old':
+        inversion_state[i, :] = 0.0
+        inversion_state[i, -1] = n_oldcars / denom_choice
+    else:
+        inversion_state[i, :] = data['holdings_dist'].loc[forecast_config.base_year, car_type, :].values
+
+projected_sales = np.full(len(projection_years), np.nan)
+
+for t, year in enumerate(projection_years):
+    surviving_total = sum((survival_matrix @ inversion_state[i, :]).sum()
+                          for i in range(len(model_config.engine_types)))
+    projected_sales[t] = bestand_to_match.loc[year].sum() - surviving_total
+
+    inflows_this_year = predicted_market_shares[t] * projected_sales[t]
+    for i in range(len(model_config.engine_types)):
+        inversion_state[i, :] = markov_step(
+            state=inversion_state[i, :],
+            dis_rates=scrap_profile,
+            purchase_inflows=inflows_this_year[i, :],
+            model_config=model_config,
+            forecast_config=forecast_config,
+        )
 
 projected_inflows[...] = predicted_market_shares * projected_sales[:, np.newaxis, np.newaxis]
 
