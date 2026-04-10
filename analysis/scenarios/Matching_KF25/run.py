@@ -77,6 +77,7 @@ salg    = salg.rename(columns={'Unnamed: 0': 'year'}).set_index('year')
 # Shift bestand years forward by 1 so KF end-of-Y aligns with model start-of-(Y+1).
 # Salg (inflow) is not shifted — it represents activity during year Y in both conventions.
 bestand.index = bestand.index + 1
+#salg.index = salg.index + 1
 
 KF_ENGINE_MAP_BESTAND = {
     'El':             'BEV',
@@ -213,7 +214,6 @@ predicted_market_shares = np.full(
         ), 
         fill_value=np.nan
 )
-projected_inflows = predicted_market_shares.copy()
 
 # BEV inflows (as a share of total sales)
 # Predicted inflow - new registrations 
@@ -286,48 +286,49 @@ assert np.all(np.isclose(predicted_market_shares.sum(axis=(1,2)), 1.0)), 'should
 # ---------------------------------------------------------------
 # Derive projected_sales by inverting the Markov model to match KF25 stock
 # ---------------------------------------------------------------
+
 from forecast.core import markov_step
 
-ages = np.arange(model_config.max_car_age + 2)
-scrap_profile = data['scrap_profile'].reindex(ages, fill_value=0).values
-age_step_matrix = np.eye(model_config.max_car_age + 2, k=-1)
-age_step_matrix[-1, -1] = 1
-survival_matrix = (1 - scrap_profile) * age_step_matrix
+# Instantiating a preliminary scenario to extract dis_rates
+n_years = forecast_config.target_year -forecast_config.base_year
+n_types = len(model_config.engine_types)
+n_maxage = model_config.max_car_age + 2
 
-# Build initial state (mirrors KFScenario.get_state)
-inversion_state = np.full((len(model_config.engine_types), model_config.max_car_age + 2), np.nan)
-for i, car_type in enumerate(model_config.engine_types):
-    if car_type == 'Old':
-        inversion_state[i, :] = 0.0
-        inversion_state[i, -1] = n_oldcars / denom_choice
-    else:
-        inversion_state[i, :] = data['holdings_dist'].loc[forecast_config.base_year, car_type, :].values
+dummy_config = KFScenarioConfig(
+    projected_sales=np.zeros(n_years),
+    market_shares=np.zeros((n_years, n_types, model_config.purchase_age_limit + 1)),
+    n_oldcars=n_oldcars/denom_choice,
+)
+dummy_Scenario = KFScenario(data, model_config, forecast_config, dummy_config)
+dummy_outcomes = dummy_Scenario.prepare()
 
-projected_sales = np.full(len(projection_years), np.nan)
-
-for t, year in enumerate(projection_years):
-    surviving_total = sum((survival_matrix @ inversion_state[i, :]).sum()
-                          for i in range(len(model_config.engine_types)))
-    projected_sales[t] = bestand_to_match.loc[year].sum() - surviving_total
-
-    inflows_this_year = predicted_market_shares[t] * projected_sales[t]
+shjt = np.full((n_years+1, n_types, n_maxage), np.nan)
+shjt[0,...] = dummy_outcomes['state']
+purchase_inflows = np.full((n_years+1, n_types, model_config.purchase_age_limit+1), 0.0)
+projected_sales = np.zeros(n_years)
+for t, year in enumerate(range(forecast_config.base_year,forecast_config.target_year)):
+    shj=np.zeros((n_types, model_config.max_car_age+ 2))
     for i in range(len(model_config.engine_types)):
-        inversion_state[i, :] = markov_step(
-            state=inversion_state[i, :],
-            dis_rates=scrap_profile,
-            purchase_inflows=inflows_this_year[i, :],
+        # shjt is surviving cars in t+1 on the basis of holdings at t. 
+        shj[i,:] = markov_step(
+            state=shjt[t, i, :],
+            dis_rates=dummy_Scenario.dis_rates[t,i,:],
+            purchase_inflows=np.zeros((model_config.purchase_age_limit+1)), 
             model_config=model_config,
             forecast_config=forecast_config,
         )
-
-projected_inflows[...] = predicted_market_shares * projected_sales[:, np.newaxis, np.newaxis]
-
+    inflow = bestand_to_match.loc[idx[year+1,:]].sum() - shj.sum()
+    purchase_inflows[t+1, ...] = predicted_market_shares[t, ...]*inflow
+    shjt[t+1, ...] = shj 
+    shjt[t+1,:, 0:(model_config.purchase_age_limit + 1)] += purchase_inflows[t+1, ...]
+    projected_sales[t] = inflow
+# Build initial state (mirrors KFScenario.get_state)
 # This should give us the schedule we are looking for. 
 
 # Create a plot of that age distribution, to sanity check it and to communicate assumptions.
 ## Plot that shows what happens in the forecast under these assumptions, showing the age distribution and the size of the inflows.
 ## A plot that shows the inflow of cars over the projected horizon. - Stacked maybe
-
+breakpoint()
 # ---------------------------------------------------------------
 # Packing scenario config
 # ---------------------------------------------------------------
@@ -395,7 +396,7 @@ def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_cho
             try:
                 return series.loc[y, et]
             except KeyError as e:
-                if e.args[0] not in model_config.synthetic_engine_types:
+                if et not in np.atleast_1d(model_config.synthetic_engine_types):
                     raise
                 return 0.0
         return np.array([
@@ -411,7 +412,6 @@ def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_cho
         historical_years,
         forecast_years,
     )
-
 
 (historical_distributions_kf, historical_inflows_kf,
  forecasted_distributions_kf, projected_inflows_kf,
@@ -445,13 +445,13 @@ plot_kf_stock_by_engine(
     forecast_config=forecast_config,
     output_dir=COMPARISON_PLOT_DIR,
 )
-
+breakpoint()
 plot_kf_inflow(
     historical_inflows_kf=historical_inflows_kf,
     projected_inflows_kf=projected_inflows_kf,
     kf_historical_years=kf_historical_years,
     kf_forecast_years=kf_forecast_years,
-    projected_inflows=projected_inflows,
+    projected_inflows=prepared['projected_inflows'],
     car_purchases_market_shares=data['car_purchases_market_shares'],
     forecast_config=forecast_config,
     output_dir=COMPARISON_PLOT_DIR,
@@ -462,7 +462,7 @@ plot_kf_inflow_by_engine(
     projected_inflows_kf=projected_inflows_kf,
     kf_historical_years=kf_historical_years,
     kf_forecast_years=kf_forecast_years,
-    projected_inflows=projected_inflows,
+    projected_inflows=prepared['projected_inflows'],
     car_purchases_market_shares=data['car_purchases_market_shares'],
     model_config=model_config,
     forecast_config=forecast_config,

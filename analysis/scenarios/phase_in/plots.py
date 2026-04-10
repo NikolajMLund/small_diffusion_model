@@ -160,12 +160,15 @@ def plot_kf_inflow_by_engine(
 ):
     forecast_years = np.arange(forecast_config.base_year + 1, forecast_config.target_year + 1)
     engine_types = list(model_config.engine_types)
+    real_engine_types = [et for et in engine_types if et not in model_config.synthetic_engine_types]
     width = 0.35
 
     model_hist_by_engine = car_purchases_market_shares.groupby(['year', 'engine_type']).sum()
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    for ax, engine_type in zip(axes, engine_types):
+    fig, axes = plt.subplots(1, len(real_engine_types), figsize=(7 * len(real_engine_types), 5))
+    if len(real_engine_types) == 1:
+        axes = [axes]
+    for ax, engine_type in zip(axes, real_engine_types):
         et_idx = engine_types.index(engine_type)
 
         kf_hist_et     = historical_inflows_kf[:, et_idx]

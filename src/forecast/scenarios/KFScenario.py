@@ -67,7 +67,8 @@ class KFScenario(BaseScenario):
         return projected_inflows
 
     def get_state(self, config: KFScenarioConfig) -> np.ndarray:
-        """Custom method to accomodate the 'Old' cars category"""
+        """Custom method to accomodate the 'Old' cars category.
+        Old cars are carved out from the oldest ICEV age bin so total stock stays consistent."""
         holdings_dist = self.data['holdings_dist']
         state = np.full((len(self.car_types), self.n_ages), np.nan)
         for i, car_type in enumerate(self.car_types):
@@ -76,6 +77,9 @@ class KFScenario(BaseScenario):
                 state[i, -1] = config.n_oldcars
             else:
                 state[i, :] = holdings_dist.loc[self.base_year, car_type, :].values
+
+        icev_idx = list(self.car_types).index('ICEV')
+        state[icev_idx, -1] -= config.n_oldcars
         return state
 
 
@@ -387,7 +391,6 @@ class KFScenario(BaseScenario):
 
     def plot_total_fleet_stock(self, forecasted_distributions: np.ndarray, output_dir: str | None = None):
         fleet = forecasted_distributions.sum(axis=2)  # (n_years, 2)
-        breakpoint()
         engine_types = self.model_config.engine_types
         colors = {'ICEV': 'tab:orange', 'BEV': 'tab:blue'}
 
