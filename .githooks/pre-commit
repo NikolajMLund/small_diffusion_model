@@ -1,0 +1,11 @@
+#!/bin/sh
+if [ -n "$VIRTUAL_ENV" ]; then
+    PYTHON="$VIRTUAL_ENV/Scripts/python"
+else
+    PYTHON="python"
+fi
+$PYTHON -m pytest tests/test_markov_step.py -v --tb=short
+if [ $? -ne 0 ]; then
+    echo "Pre-commit: tests failed. Commit aborted."
+    exit 1
+fi
