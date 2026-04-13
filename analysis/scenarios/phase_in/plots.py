@@ -118,7 +118,7 @@ def plot_kf_inflow(
     output_dir,
     file_name='kf_inflow.png',
 ):
-    forecast_years = np.arange(forecast_config.base_year + 1, forecast_config.target_year + 1)
+    forecast_years = np.arange(forecast_config.base_year, forecast_config.target_year)
     width = 0.35
 
     kf_hist_total     = historical_inflows_kf.sum(axis=1)
@@ -146,6 +146,77 @@ def plot_kf_inflow(
     plt.close()
 
 
+def plot_kf_inflow_with_scrappage_gap(
+    historical_inflows_kf,          # (n_hist, n_engine_types)
+    projected_inflows_kf,           # (n_forecast, n_engine_types)
+    kf_historical_years,
+    kf_forecast_years,
+    projected_inflows,              # (n_periods, n_engine_types, n_ages)
+    car_purchases_market_shares,    # Series (year, engine_type, car_age)
+    kf_scrap_years,                 # years for which KF scrappage is known
+    kf_scrap_values,                # KF implied scrappage (absolute cars)
+    model_scrappage_fc,             # (n_forecast_years,) model scrappage (absolute cars)
+    scrappage_fc_years,             # years corresponding to model_scrappage_fc
+    denom_choice,
+    forecast_config,
+    output_dir,
+    file_name='kf_inflow_with_scrappage_gap.png',
+):
+    """
+    Like plot_kf_inflow, but adds a green stacked bar on top of the blue model
+    forecast bar showing how much of the inflow gap is attributable to differences
+    in scrappage between KF and the model.
+
+    Scrappage diff for year Y is stacked on the inflow bar for the same year Y.
+    """
+    forecast_years = np.arange(forecast_config.base_year, forecast_config.target_year)
+    width = 0.35
+
+    kf_hist_total     = historical_inflows_kf.sum(axis=1)
+    kf_forecast_total = projected_inflows_kf.sum(axis=1)
+    model_hist_total  = car_purchases_market_shares.groupby('year').sum()
+    model_fc_total    = projected_inflows.sum(axis=(1, 2))
+
+    # Scrappage diff: KF − Model, in normalised units, keyed by year
+    common_scrap = np.intersect1d(kf_scrap_years, scrappage_fc_years)
+    kf_scrap_common    = kf_scrap_values[np.isin(kf_scrap_years, common_scrap)]
+    model_scrap_common = model_scrappage_fc[np.isin(scrappage_fc_years, common_scrap)]
+    scrap_diff_norm    = (kf_scrap_common - model_scrap_common) / denom_choice  # normalised
+
+    scrap_diff_years = common_scrap
+
+    # Align to forecast_years
+    scrap_aligned = np.zeros(len(forecast_years))
+    for i, fy in enumerate(forecast_years):
+        mask = scrap_diff_years == fy
+        if mask.any():
+            scrap_aligned[i] = scrap_diff_norm[mask][0]
+
+    fig, ax = plt.subplots(figsize=(14, 5))
+    ax.scatter(kf_historical_years, kf_hist_total,
+               color='tab:orange', zorder=3, label='KF 2025 (historical)')
+    ax.scatter(model_hist_total.index, model_hist_total.values,
+               color='tab:blue', zorder=3, marker='s', label='Historical')
+    ax.bar(kf_forecast_years - width / 2, kf_forecast_total, width=width,
+           color='tab:orange', alpha=0.7, label='KF 2025 (forecast)')
+    ax.bar(forecast_years + width / 2, model_fc_total, width=width,
+           color='tab:blue', alpha=0.7, label='Model (forecast)')
+    ax.bar(forecast_years + width / 2, scrap_aligned, width=width,
+           bottom=model_fc_total, color='tab:green', alpha=0.7,
+           label='Scrappage gap (KF − Model)')
+    ax.axvline(forecast_config.base_year, color='grey', linestyle=':', linewidth=0.8)
+    ax.axhline(0, color='black', linewidth=0.5)
+    ax.set_xlabel('Year')
+    ax.set_ylabel('Annual inflow (norm.)')
+    ax.set_title('Annual car inflow — KF 2025 vs Model\n'
+                 'Green = extra inflow explained by higher KF scrappage in the same year')
+    ax.legend()
+    fig.tight_layout()
+    os.makedirs(output_dir, exist_ok=True)
+    fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
+    plt.close()
+
+
 def plot_kf_inflow_by_engine(
     historical_inflows_kf,          # (n_hist, n_engine_types)
     projected_inflows_kf,           # (n_forecast, n_engine_types)
@@ -158,7 +229,7 @@ def plot_kf_inflow_by_engine(
     output_dir,
     file_name='kf_inflow_by_engine.png',
 ):
-    forecast_years = np.arange(forecast_config.base_year + 1, forecast_config.target_year + 1)
+    forecast_years = np.arange(forecast_config.base_year, forecast_config.target_year)
     engine_types = list(model_config.engine_types)
     real_engine_types = [et for et in engine_types if et not in model_config.synthetic_engine_types]
     width = 0.35
@@ -293,6 +364,139 @@ def plot_kf_stock_difference_total(
     os.makedirs(output_dir, exist_ok=True)
     fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
     plt.close()
+
+
+def plot_base_year_stock_vs_inflow_diff(
+    historical_distributions_kf,   # (n_hist, n_engine_types)
+    projected_inflows_kf,           # (n_forecast, n_engine_types)
+    kf_historical_years,
+    kf_forecast_years,
+    projected_inflows,              # (n_periods, n_engine_types, n_ages)
+    holdings_dist,                  # Series (year, engine_type, car_age)
+    denom_choice,
+    forecast_config,
+    output_dir,
+    file_name='base_year_stock_vs_inflow_diff.png',
+):
+    """
+    Compare two differences, both computed as KF minus the reference:
+      - Stock diff at base_year:    KF stock minus Statistics Denmark (historical) stock
+      - Inflow diff at base_year+1: KF inflow minus Model projected inflow
+
+    Positive = KF is larger; negative = KF is smaller.
+    Both expressed in absolute car counts (normalised values multiplied by denom_choice).
+    """
+    base_year = forecast_config.base_year
+
+    # --- stock diff at base_year (total across all engine types) ---
+    by_mask = kf_historical_years == base_year
+    kf_stock_base    = historical_distributions_kf[by_mask, :].sum()   # scalar
+    model_stock_base = holdings_dist.groupby('year').sum().loc[base_year]  # scalar
+
+    stock_diff_total = (kf_stock_base - model_stock_base) * denom_choice   # absolute cars
+
+    # --- inflow diff at base_year + 1 (total across all engine types) ---
+    fy_mask = kf_forecast_years == base_year + 1
+    kf_inflow_next    = projected_inflows_kf[fy_mask, :].sum()   # scalar
+    model_inflow_next = projected_inflows[0, :, :].sum()          # scalar
+
+    inflow_diff_total = (kf_inflow_next - model_inflow_next) * denom_choice  # absolute cars
+
+    # --- plot ---
+    fig, ax = plt.subplots(figsize=(5, 5))
+
+    x      = np.array([0, 1])
+    labels = [
+        f'Stock diff (year {base_year})\nKF minus Statistics Denmark',
+        f'Inflow diff (year {base_year + 1})\nKF minus Model',
+    ]
+    values = [stock_diff_total, inflow_diff_total]
+    colors = ['tab:blue' if v >= 0 else 'tab:red' for v in values]
+
+    ax.bar(x, values, width=0.5, color=colors, alpha=0.8)
+    ax.axhline(0, color='black', linewidth=0.8)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels)
+    ax.set_ylabel('Cars (absolute)\nPositive = KF larger; Negative = KF smaller')
+    ax.set_title(f'Stock gap at {base_year} vs inflow gap at {base_year + 1} (all engine types)')
+
+    fig.tight_layout()
+    os.makedirs(output_dir, exist_ok=True)
+    fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
+    plt.close()
+
+
+def plot_kf_vs_model_scrappage(
+    kf_scrap_years,                 # pre-computed KF implied scrappage years
+    kf_scrap_values,                # pre-computed KF implied scrappage (absolute cars)
+    scrappage_fc_years,             # years for model_scrappage_fc
+    model_scrappage_fc,             # (n_forecast_years,) absolute cars — shjt[t].sum() - shj.sum()
+    denom_choice,
+    forecast_config,
+    output_dir,
+    file_name='kf_vs_model_scrappage.png',
+):
+    """
+    Compare implied scrappage between KF and the model.
+
+    KF implied scrappage at year Y (stock balance):
+        scrappage(Y) = stock(Y) + inflow(Y) - stock(Y+1)
+
+    Model forecast scrappage:
+        shjt[t].sum() - shj.sum()  (state before survival minus state after survival)
+
+    All values in absolute car counts. Pass pre-computed arrays from run.py.
+    """
+    base_year = forecast_config.base_year
+
+    # Difference over overlapping years
+    common_years = np.intersect1d(kf_scrap_years, scrappage_fc_years)
+    kf_common    = kf_scrap_values[np.isin(kf_scrap_years, common_years)]
+    model_common = model_scrappage_fc[np.isin(scrappage_fc_years, common_years)]
+    diff_abs     = kf_common - model_common   # absolute cars, KF minus Model
+
+    def _make_plot(kf_vals, model_vals, diff_vals, ylabel, diff_ylabel):
+        fig, ax = plt.subplots(figsize=(14, 5))
+
+        ax.plot(kf_scrap_years, kf_vals,
+                color='tab:orange', marker='o', label='KF 2025 (implied: stock + inflow − next stock)')
+        ax.plot(scrappage_fc_years, model_vals,
+                color='tab:blue', linestyle='--', marker='s',
+                label='Model (forecast: state before − state after survival)')
+        ax.axvline(base_year, color='grey', linestyle=':', linewidth=0.8)
+        ax.set_xlabel('Year')
+        ax.set_ylabel(ylabel)
+
+        ax2 = ax.twinx()
+        bar_colors = ['tab:green' if v >= 0 else 'tab:red' for v in diff_vals]
+        ax2.bar(common_years, diff_vals, width=0.6, color=bar_colors, alpha=0.4,
+                label='Difference (KF − Model)')
+        ax2.axhline(0, color='black', linewidth=0.5)
+        ax2.set_ylabel(diff_ylabel)
+
+        lines1, labels1 = ax.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax.legend(lines1 + lines2, labels1 + labels2, loc='upper left')
+        ax.set_title('Annual scrappage — KF 2025 implied vs Model\n'
+                     'KF: stock(Y) + inflow(Y) − stock(Y+1)  |  Model: state before − after survival')
+        fig.tight_layout()
+        return fig
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    fig = _make_plot(kf_scrap_values, model_scrappage_fc, diff_abs,
+                     ylabel='Scrapped cars (absolute)',
+                     diff_ylabel='Difference KF − Model (absolute cars)')
+    fig.savefig(os.path.join(output_dir, file_name), dpi=150, bbox_inches='tight')
+    plt.close(fig)
+
+    norm_name = file_name.replace('.png', '_normalised.png')
+    fig = _make_plot(kf_scrap_values / denom_choice, model_scrappage_fc / denom_choice,
+                     diff_abs / denom_choice,
+                     ylabel='Scrapped cars (normalised)',
+                     diff_ylabel='Difference KF − Model (normalised)')
+    fig.savefig(os.path.join(output_dir, norm_name), dpi=150, bbox_inches='tight')
+    plt.close(fig)
 
 
 def plot_total_regression_fit(

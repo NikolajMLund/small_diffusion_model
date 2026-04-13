@@ -306,29 +306,31 @@ shjt = np.full((n_years+1, n_types, n_maxage), np.nan)
 shjt[0,...] = dummy_outcomes['state']
 purchase_inflows = np.full((n_years+1, n_types, model_config.purchase_age_limit+1), 0.0)
 projected_sales = np.zeros(n_years)
+model_scrappage_fc = np.zeros(n_years)  # scrapped cars per forecast year
 for t, year in enumerate(range(forecast_config.base_year,forecast_config.target_year)):
     shj=np.zeros((n_types, model_config.max_car_age+ 2))
     for i in range(len(model_config.engine_types)):
-        # shjt is surviving cars in t+1 on the basis of holdings at t. 
+        # shjt is surviving cars in t+1 on the basis of holdings at t.
         shj[i,:] = markov_step(
             state=shjt[t, i, :],
             dis_rates=dummy_Scenario.dis_rates[t,i,:],
-            purchase_inflows=np.zeros((model_config.purchase_age_limit+1)), 
+            purchase_inflows=np.zeros((model_config.purchase_age_limit+1)),
             model_config=model_config,
             forecast_config=forecast_config,
         )
     inflow = bestand_to_match.loc[idx[year+1,:]].sum() - shj.sum()
     purchase_inflows[t+1, ...] = predicted_market_shares[t, ...]*inflow
-    shjt[t+1, ...] = shj 
+    shjt[t+1, ...] = shj
     shjt[t+1,:, 0:(model_config.purchase_age_limit + 1)] += purchase_inflows[t+1, ...]
     projected_sales[t] = inflow
+    # Cars that disappeared during year: state before survival minus state after survival
+    model_scrappage_fc[t] = (shjt[t,...].sum() - shj.sum()) * denom_choice
 # Build initial state (mirrors KFScenario.get_state)
 # This should give us the schedule we are looking for. 
 
 # Create a plot of that age distribution, to sanity check it and to communicate assumptions.
 ## Plot that shows what happens in the forecast under these assumptions, showing the age distribution and the size of the inflows.
 ## A plot that shows the inflow of cars over the projected horizon. - Stacked maybe
-breakpoint()
 # ---------------------------------------------------------------
 # Packing scenario config
 # ---------------------------------------------------------------
@@ -374,7 +376,7 @@ plot_forecast_vs_actual(
 ################################################################
 
 # Read in data
-from plots import wrangle_kf_to_engine_types, plot_kf_stock_total, plot_kf_stock_by_engine, plot_kf_inflow, plot_kf_inflow_by_engine, plot_kf_stock_difference, plot_kf_stock_difference_total
+from plots import wrangle_kf_to_engine_types, plot_kf_stock_total, plot_kf_stock_by_engine, plot_kf_inflow, plot_kf_inflow_by_engine, plot_kf_stock_difference, plot_kf_stock_difference_total, plot_base_year_stock_vs_inflow_diff, plot_kf_vs_model_scrappage, plot_kf_inflow_with_scrappage_gap
 
 
 def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_choice):
@@ -445,7 +447,7 @@ plot_kf_stock_by_engine(
     forecast_config=forecast_config,
     output_dir=COMPARISON_PLOT_DIR,
 )
-breakpoint()
+
 plot_kf_inflow(
     historical_inflows_kf=historical_inflows_kf,
     projected_inflows_kf=projected_inflows_kf,
@@ -489,6 +491,63 @@ plot_kf_stock_difference_total(
     kf_forecast_years=kf_forecast_years,
     forecasted_distributions=forecasted_distributions,
     holdings_dist=data['holdings_dist'],
+    denom_choice=denom_choice,
+    forecast_config=forecast_config,
+    output_dir=COMPARISON_PLOT_DIR,
+)
+
+plot_base_year_stock_vs_inflow_diff(
+    historical_distributions_kf=historical_distributions_kf,
+    projected_inflows_kf=projected_inflows_kf,
+    kf_historical_years=kf_historical_years,
+    kf_forecast_years=kf_forecast_years,
+    projected_inflows=prepared['projected_inflows'],
+    holdings_dist=data['holdings_dist'],
+    denom_choice=denom_choice,
+    forecast_config=forecast_config,
+    output_dir=COMPARISON_PLOT_DIR,
+)
+
+# KF implied scrappage: stock(Y) + inflow(Y) - stock(Y+1)
+_kf_all_years  = np.concatenate([kf_historical_years, kf_forecast_years])
+_kf_all_stock  = np.concatenate([historical_distributions_kf.sum(axis=1),
+                                  forecasted_distributions_kf.sum(axis=1)])
+_kf_all_inflow = np.concatenate([historical_inflows_kf.sum(axis=1),
+                                  projected_inflows_kf.sum(axis=1)])
+_ks_years, _ks_values = [], []
+for _i, _y in enumerate(_kf_all_years[:-1]):
+    _y_next = _y + 1
+    if _y_next not in _kf_all_years:
+        continue
+    _j = np.where(_kf_all_years == _y_next)[0][0]
+    _ks_values.append((_kf_all_stock[_i] + _kf_all_inflow[_i] - _kf_all_stock[_j]) * denom_choice)
+    _ks_years.append(_y)
+kf_scrap_years  = np.array(_ks_years)
+kf_scrap_values = np.array(_ks_values)
+scrappage_fc_years = np.arange(forecast_config.base_year,
+                                forecast_config.base_year + len(model_scrappage_fc))
+
+plot_kf_vs_model_scrappage(
+    kf_scrap_years=kf_scrap_years,
+    kf_scrap_values=kf_scrap_values,
+    scrappage_fc_years=scrappage_fc_years,
+    model_scrappage_fc=model_scrappage_fc,
+    denom_choice=denom_choice,
+    forecast_config=forecast_config,
+    output_dir=COMPARISON_PLOT_DIR,
+)
+
+plot_kf_inflow_with_scrappage_gap(
+    historical_inflows_kf=historical_inflows_kf,
+    projected_inflows_kf=projected_inflows_kf,
+    kf_historical_years=kf_historical_years,
+    kf_forecast_years=kf_forecast_years,
+    projected_inflows=prepared['projected_inflows'],
+    car_purchases_market_shares=data['car_purchases_market_shares'],
+    kf_scrap_years=kf_scrap_years,
+    kf_scrap_values=kf_scrap_values,
+    model_scrappage_fc=model_scrappage_fc,
+    scrappage_fc_years=scrappage_fc_years,
     denom_choice=denom_choice,
     forecast_config=forecast_config,
     output_dir=COMPARISON_PLOT_DIR,

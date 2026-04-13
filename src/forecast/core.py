@@ -53,7 +53,7 @@ def markov_step(
     Replicates the transition logic from the original forecast.py:
     1. Build an age-shift matrix (subdiagonal).
     2. Scale each column by its survival probability (1 - disappearance rate).
-    3. Force the oldest cohort to scrap with certainty.
+    #3. Force the oldest cohort to scrap with certainty.
     4. Add purchase inflows for ages 0..max_purchase_age.
 
     Parameters
