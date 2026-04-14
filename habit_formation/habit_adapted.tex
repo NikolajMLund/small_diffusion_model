@@ -1,0 +1,157 @@
+
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[danish]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\begin{document}
+
+\section*{Spørgsmål til modellen}
+
+\subsection*{Fra stokastisk aldring til deterministisk aldring}
+
+\begin{align}
+s^{\text{used}}_{f,t} &= (1 - \delta_{f,t}) s^{\text{used}}_{f,t-1} + (1 - \delta_{0,f,t}) s^{\text{new}}_{f,t-1} \\
+&\Rightarrow \\
+d_{f,a,t} &= \delta_{f,a-1,t-1} d_{f,a-1,t-1} \quad \forall a > 0, \; \forall t \geq 0
+\end{align}
+
+Bliver agenten ikke nødt til at være dynamisk optimerende nu?
+\begin{align}
+\sum_{t=0}^{T} \mathbb{E} \left[ \beta^t U(t) \mid I_t \right]
+\end{align}
+
+For hver bilalder bliver agenten nødt til at forholde sig til, at hans valg i $t$ har betydning i $t+1$. 
+
+GAMS er stadig farbar?
+
+\subsection*{Habit formation og aldring}
+
+Martin har kun habit formation i ``used car nest''. Vi har en alders-nest under teknologien.
+
+Used car nests benytter sig af habit formation:
+\begin{align}
+\tilde{d}\big(d^{\text{used}}_{f,t}, d^{\text{used}}_{f,t-1}\big)
+= d^{\text{used}}_{f,t} - h_f d^{\text{used}}_{f,t-1}
+\end{align}
+
+Med deterministisk aldring bør det linkes som:
+\begin{align}
+\tilde{d}_{a,t} 
+&\equiv \tilde{d}\big(d_{f,a,t}, d_{f,a-1,t-1}\big) \\
+&= d_{f,a,t} - h_f d_{f,a-1,t-1}
+\end{align}
+
+% \textbf{Eksperiment:} \\ 
+% Fra følgende law of motion kan vi skrive $d_{f,a,t} = \delta_{f,a-1,t-1} d_{f, a-1, t-1} <=> \delta_{f,a-1,t-1}^{-1} d_{f,a,t} =  d_{f, a-1, t-1}$ så får man: 
+% \begin{align}
+%     \tilde{d}_{f,a,t} &= d_{f,a,t} - \delta_{f,a-1,t-1}^{-1} h_f d_{f,a,t} \\
+%     \tilde{d}_{f,a,t} &= (1- \delta_{f,a-1,t-1}^{-1} h_f) d_{f,a,t} \\
+% \end{align}
+% Så vi har nu - ligevægtsnytten. Lad os lave noget komparativ statik. $h=0$: Vi ender med CES og 
+
+
+%Så habits parameteren fungerer som en skalering interageret med overlevelsesraten. \textit{Giver det her mening?} 
+%Så lad os sige $h=1$ og overlevelsraten er $<1$ så er $(1- \delta_{f,a-1,t-1}^{-1} h_f)<0$, negativ nytte?
+%Jeg er ikke sikker på at det her giver mening. Den dynamiske kobling som skaber persistence er i hvert fald forsvundet. 
+% \subsubsection{Alternativ:}
+% Lad i stedet:
+% \begin{align}
+% \tilde{d}_{a,t} 
+% &\equiv \tilde{d}\big(d_{f,a,t}, d_{f,a,t-1}\big) \\
+% &= d_{f,a,t} - h_f d_{f,a,t-1}
+% \end{align}
+% Nu man modellerer nu habits sådan at der er træghed i præferencen for en given alder\dots
+% Det \textit{er ikke hvad vi ønsker?}
+
+\subsubsection{Kvadratiske "tilpasningsomkostninger".}
+Man kunne måske også forestille sig at der er tilpasningsomkostninger:
+\begin{align}
+    U_t = U(d_t) - \kappa \sum_{a}(d_{f,a,t} - d_{f,a,t-1})^2
+\end{align}
+I så fald hvad bliver Marshallian demand. Er den closed form? Er det et problem? 
+
+
+
+\section{Tanker om fordelingsparametre $\mu$}
+\subsection*{Nyttefunktion}
+
+\begin{align}
+d_t = \left[ \sum_{a=0}^{A} f\big(\tilde{d}_{a,t}\big) \right]^{\frac{1}{1-\sigma}}
+\end{align}
+
+hvor
+\begin{align}
+f(x) = \mu^\sigma x^{1-\sigma}
+\end{align}
+
+\subsection*{Marshalliansk efterspørgsel}
+
+I den mest generelle form:
+\begin{align}
+d_{f,a,t} 
+= \mu_{f,a,t} \left( \frac{p_{f,a,t}}{p_{f,t}} \right)^{-\sigma} d_{f,t} 
++ h_f d_{f,a-1,t-1}
+\end{align}
+
+\subsection*{Parametrisering af $\mu$}
+
+Vi har stadig et fuldt sæt af $\mu$'er.
+
+Vi kunne sige:
+\begin{align}
+\mu_{f,0,t} \text{ varierer over tid}, \quad 
+\mu_{f,a} = \mu_{f,a,t} \quad \forall t, \; \forall a > 0
+\end{align}
+
+Implikation: elbiler indfases via $\mu_{f,0,t}$, mens alderspræferencer er tidsinvariante.
+
+Så bliver:
+\begin{align}
+d_{f,a,t} 
+= \mu_{f,a} \left( \frac{p_{f,a,t}}{p_{f,t}} \right)^{-\sigma} d_{f,t}
++ h_f d_{f,a-1,t-1}
+\end{align}
+
+\paragraph{Problem}
+Hvis $d_{f,a-1,t-1} = 0$ og $\mu_{f,a} > 0$, kræver det at priser går mod uendelig for at få $d_{f,a,t} \to 0$.
+
+\subsection*{Alternativ specifikation}
+
+Antag:
+\begin{align}
+\mu_{f,t} = \mu_{f,a,t} \quad \forall t, \; \forall a > 0
+\end{align}
+
+Så bliver:
+\begin{align}
+d_{f,a,t} 
+= \mu_{f,t} \left( \frac{p_{f,a,t}}{p_{f,t}} \right)^{-\sigma} d_{f,t}
++ h_f d_{f,a-1,t-1}
+\end{align}
+
+Hvis $d_{f,a-1,t-1} = 0$:
+\begin{align}
+d_{f,a,t} 
+= \mu_{f,t} \left( \frac{p_{f,a,t}}{p_{f,t}} \right)^{-\sigma} d_{f,t}
+\end{align}
+
+Dynamik:
+\begin{align}
+d_{f,a+1,t+1} - h_f d_{f,a,t}
+= \mu_{f,t+1} \left( \frac{p_{f,a+1,t+1}}{p_{f,t+1}} \right)^{-\sigma} d_{f,t+1}
+\end{align}
+
+Dette giver sandsynligvis den øverste del af en S-kurve (aftagende effekt), hvor:
+\begin{align}
+\mu_{f,t} \to \mu_f
+\end{align}
+
+Den nederste (accelererende) del af S-kurven kan styres via:
+\begin{align}
+\frac{\partial \mu_{f,t}}{\partial t}
+\end{align}
+
+\end{document}
