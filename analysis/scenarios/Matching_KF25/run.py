@@ -594,8 +594,8 @@ assert holdings.index.is_unique, "The index is not unique. Check for duplicates 
 
 # scale to by stock in baseline year.
 from pandas import IndexSlice as idx
-scale_stock = holdings.loc[idx[forecast_config.base_year, :, :], 'value'].sum()
-holdings.loc[:, 'value'] /= scale_stock
+#scale_stock = holdings.loc[idx[forecast_config.base_year, :, :], 'value'].sum()
+#holdings.loc[:, 'value'] /= scale_stock
 
 holdings = (
     holdings
