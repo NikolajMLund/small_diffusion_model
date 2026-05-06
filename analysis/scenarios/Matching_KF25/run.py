@@ -25,17 +25,13 @@ from plots import (
 #BASE_YEAR = 2024
 #TARGET_YEAR = 2035
 BASE_YEAR = 2024
-TARGET_YEAR = 2035
+TARGET_YEAR = 2045
 data_limit_year = 2024 # Used in the projection 
 scale_years = {2026: 12/2}
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'plots')
 DATA_PATH = 'processed_data.pkl'
 
-from data_import import import_FAM55N
-FAM55N = import_FAM55N()
-#FIXTHIS: Should just be part of the dta imported. 
-denom_choice = 2 * FAM55N[FAM55N['TID'] == 2020]['INDHOLD'].values[0]
 n_oldcars = 72_000
 
 model_config = ModelConfig(
@@ -50,6 +46,7 @@ forecast_config = ForecastConfig(
 
 # TODO: This should happen in the data_process file.
 data = load_data(DATA_PATH)
+denom_choice = data['denom_choice']
 for key in ['car_purchases_market_shares', 'new_car_registrations_market_shares']:
     years = data[key].index.get_level_values('year')
     data[key] = data[key][~years.isin(scale_years.keys())]
@@ -553,4 +550,70 @@ plot_kf_inflow_with_scrappage_gap(
     output_dir=COMPARISON_PLOT_DIR,
 )
 
+
+# ---------------------------------------------------------------
+# Diagnostics: age-specific holdings by year and engine type
+# ---------------------------------------------------------------
+
+# Historic (from observed data) — MultiIndex (year, engine_type, car_age)
+_name = data['holdings_dist'].name
+hist = (
+    data['holdings_dist']
+    .reset_index()
+    .rename(columns={_name: 'value'} if _name else {0: 'value'})
+)
+hist['source'] = 'historic'
+
+# Predicted (from forecast) — unpack 3-D array (n_years, n_types, n_ages)
+_projection_years = Scenario.projection_years
+_n_ages_pred = forecasted_distributions.shape[2]
+pred_rows = [
+    {
+        'year':        int(year),
+        'engine_type': model_config.engine_types[i],
+        'car_age':     age,
+        'value':       forecasted_distributions[t, i, age],
+    }
+    for t, year in enumerate(_projection_years)
+    for i in range(len(model_config.engine_types))
+    for age in range(_n_ages_pred)
+]
+pred = pd.DataFrame(pred_rows)
+pred['source'] = 'predicted'
+
+pred_years = pred.year.unique()
+hist = hist[~hist['year'].isin(pred_years)]
+
+
+holdings = pd.concat([hist, pred], ignore_index=True)
+holdings = holdings[['year', 'engine_type', 'car_age', 'value', 'source']]
+
+holdings = holdings.set_index(['year', 'engine_type', 'car_age']).sort_index()
+
+assert holdings.index.is_unique, "The index is not unique. Check for duplicates before continuing."
+
+# scale to by stock in baseline year.
+from pandas import IndexSlice as idx
+scale_stock = holdings.loc[idx[forecast_config.base_year, :, :], 'value'].sum()
+holdings.loc[:, 'value'] /= scale_stock
+
+holdings = (
+    holdings
+    .reset_index()
+    .set_index(['engine_type', 'car_age', 'year'])[['value', 'source']]
+    .loc[model_config.engine_types]
+)
+
+holdings.to_pickle(
+    os.path.join(OUTPUT_DIR, 'KF_scenario.pkl'),
+)
+
+# aggregate to total stock by year and engine type, for sanity check
+total_by_year_engine = holdings.groupby(['year', 'engine_type'])['value'].sum().unstack('engine_type')
+total_by_year_engine['bestand'] = total_by_year_engine.sum(axis=1)
+for et in model_config.engine_types:
+    total_by_year_engine[f'{et}_share'] = total_by_year_engine[et] / total_by_year_engine['bestand']
+total_by_year_engine['ICEV_share_+'] = total_by_year_engine['ICEV_share'] + total_by_year_engine['Old_share'] 
+# and save this an excel file 
+total_by_year_engine.to_excel(os.path.join(OUTPUT_DIR, 'KF_scenario_total_by_year_engine.xlsx'))
 

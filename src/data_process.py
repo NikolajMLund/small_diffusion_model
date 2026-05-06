@@ -104,8 +104,9 @@ def main():
     ###################################
     ## prob. of purchasing a new car: #
     ###################################
-    denom_choice  = 2*FAM55N[FAM55N['year'] == 2020]['count'].values[0]
-
+    #denom_choice  = 2*FAM55N[FAM55N['year'] == 2020]['count'].values[0]
+    denom_choice = 1_000_000
+    
     ncpurch_prob=(
         BIL51.groupby(['year', 'owner_type'], as_index=True)['count'].sum()/
         # shift +1: households observed beginning of t are denominator for purchases in t + 1
@@ -253,6 +254,7 @@ def main():
     ##########################################
 
     processed_data = {
+        'denom_choice': denom_choice,
         'disappearance_rate': dis_rate,
         'holdings_dist': holdings_dist,
         'engine_shares': engine_shares_df,

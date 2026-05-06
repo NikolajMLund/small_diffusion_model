@@ -62,8 +62,8 @@ def import_FAM55N():
 
     response = requests.post(data_url, json=payload)
 
-    BIL51 = pd.read_csv(io.StringIO(response.text), sep=";")
-    return BIL51
+    FAM55N = pd.read_csv(io.StringIO(response.text), sep=";")
+    return FAM55N
 
 def import_BIL52():
     data_url = "https://api.statbank.dk/v1/data"

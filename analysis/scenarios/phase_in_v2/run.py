@@ -360,11 +360,7 @@ KF_ENGINE_MAP_SALG = {
 bestand = wrangle_kf_to_engine_types(bestand, KF_ENGINE_MAP_BESTAND)
 salg = wrangle_kf_to_engine_types(salg, KF_ENGINE_MAP_SALG)
 
-from data_import import import_FAM55N
-FAM55N = import_FAM55N()
-
-#FIXTHIS: Should just be part of the dta imported. 
-denom_choice = 2 * FAM55N[FAM55N['TID'] == 2020]['INDHOLD'].values[0]
+denom_choice = data['denom_choice']
 
 
 def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_choice):

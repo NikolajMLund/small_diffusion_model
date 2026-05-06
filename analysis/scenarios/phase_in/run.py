@@ -18,7 +18,7 @@ from plots import plot_total_regression_fit, plot_engine_share_over_time
 #BASE_YEAR = 2024
 #TARGET_YEAR = 2035
 BASE_YEAR = 2024
-TARGET_YEAR = 2035
+TARGET_YEAR = 2100 #2035
 data_limit_year = 2024 # Used in the projection 
 scale_years = {2026: 12/2}
 
@@ -302,7 +302,7 @@ forecasted_distributions = forecast(
     forecast_config=forecast_config,
 )
 
-Scenario.plot_all(output_dir=SCENARIO_PLOT_DIR, forecasted_distributions=forecasted_distributions)
+#Scenario.plot_all(output_dir=SCENARIO_PLOT_DIR, forecasted_distributions=forecasted_distributions)
 
 plot_forecast_vs_actual(
     forecasted_distributions=forecasted_distributions,
@@ -352,11 +352,7 @@ KF_ENGINE_MAP_SALG = {
 bestand = wrangle_kf_to_engine_types(bestand, KF_ENGINE_MAP_BESTAND)
 salg = wrangle_kf_to_engine_types(salg, KF_ENGINE_MAP_SALG)
 
-from data_import import import_FAM55N
-FAM55N = import_FAM55N()
-
-#FIXTHIS: Should just be part of the dta imported. 
-denom_choice = 2 * FAM55N[FAM55N['TID'] == 2020]['INDHOLD'].values[0]
+denom_choice = data['denom_choice']
 
 
 def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_choice):
@@ -389,84 +385,149 @@ def create_kf_comparison(bestand, salg, model_config, forecast_config, denom_cho
     )
 
 
-(historical_distributions_kf, historical_inflows_kf,
- forecasted_distributions_kf, projected_inflows_kf,
- kf_historical_years, kf_forecast_years) = create_kf_comparison(
-    bestand,
-    salg,
-    model_config,
-    forecast_config,
-    denom_choice,
+# (historical_distributions_kf, historical_inflows_kf,
+#  forecasted_distributions_kf, projected_inflows_kf,
+#  kf_historical_years, kf_forecast_years) = create_kf_comparison(
+#     bestand,
+#     salg,
+#     model_config,
+#     forecast_config,
+#     denom_choice,
+# )
+
+# plot_kf_stock_total(
+#     historical_distributions_kf=historical_distributions_kf,
+#     forecasted_distributions_kf=forecasted_distributions_kf,
+#     kf_historical_years=kf_historical_years,
+#     kf_forecast_years=kf_forecast_years,
+#     forecasted_distributions=forecasted_distributions,
+#     holdings_dist=data['holdings_dist'],
+#     forecast_config=forecast_config,
+#     output_dir=COMPARISON_PLOT_DIR,
+# )
+
+# plot_kf_stock_by_engine(
+#     historical_distributions_kf=historical_distributions_kf,
+#     forecasted_distributions_kf=forecasted_distributions_kf,
+#     kf_historical_years=kf_historical_years,
+#     kf_forecast_years=kf_forecast_years,
+#     forecasted_distributions=forecasted_distributions,
+#     holdings_dist=data['holdings_dist'],
+#     model_config=model_config,
+#     forecast_config=forecast_config,
+#     output_dir=COMPARISON_PLOT_DIR,
+# )
+
+# plot_kf_inflow(
+#     historical_inflows_kf=historical_inflows_kf,
+#     projected_inflows_kf=projected_inflows_kf,
+#     kf_historical_years=kf_historical_years,
+#     kf_forecast_years=kf_forecast_years,
+#     projected_inflows=projected_inflows,
+#     car_purchases_market_shares=data['car_purchases_market_shares'],
+#     forecast_config=forecast_config,
+#     output_dir=COMPARISON_PLOT_DIR,
+# )
+
+# plot_kf_inflow_by_engine(
+#     historical_inflows_kf=historical_inflows_kf,
+#     projected_inflows_kf=projected_inflows_kf,
+#     kf_historical_years=kf_historical_years,
+#     kf_forecast_years=kf_forecast_years,
+#     projected_inflows=projected_inflows,
+#     car_purchases_market_shares=data['car_purchases_market_shares'],
+#     model_config=model_config,
+#     forecast_config=forecast_config,
+#     output_dir=COMPARISON_PLOT_DIR,
+# )
+
+# plot_kf_stock_difference(
+#     historical_distributions_kf=historical_distributions_kf,
+#     forecasted_distributions_kf=forecasted_distributions_kf,
+#     kf_historical_years=kf_historical_years,
+#     kf_forecast_years=kf_forecast_years,
+#     forecasted_distributions=forecasted_distributions,
+#     holdings_dist=data['holdings_dist'],
+#     denom_choice=denom_choice,
+#     model_config=model_config,
+#     forecast_config=forecast_config,
+#     output_dir=COMPARISON_PLOT_DIR,
+# )
+
+# plot_kf_stock_difference_total(
+#     historical_distributions_kf=historical_distributions_kf,
+#     forecasted_distributions_kf=forecasted_distributions_kf,
+#     kf_historical_years=kf_historical_years,
+#     kf_forecast_years=kf_forecast_years,
+#     forecasted_distributions=forecasted_distributions,
+#     holdings_dist=data['holdings_dist'],
+#     denom_choice=denom_choice,
+#     forecast_config=forecast_config,
+#     output_dir=COMPARISON_PLOT_DIR,
+# )
+
+
+# ---------------------------------------------------------------
+# Diagnostics: age-specific holdings by year and engine type
+# ---------------------------------------------------------------
+
+# Historic (from observed data) — MultiIndex (year, engine_type, car_age)
+_name = data['holdings_dist'].name
+hist = (
+    data['holdings_dist']
+    .reset_index()
+    .rename(columns={_name: 'value'} if _name else {0: 'value'})
+)
+hist['source'] = 'historic'
+
+# Predicted (from forecast) — unpack 3-D array (n_years, n_types, n_ages)
+_projection_years = Scenario.projection_years
+_n_ages_pred = forecasted_distributions.shape[2]
+pred_rows = [
+    {
+        'year':        int(year),
+        'engine_type': model_config.engine_types[i],
+        'car_age':     age,
+        'value':       forecasted_distributions[t, i, age],
+    }
+    for t, year in enumerate(_projection_years)
+    for i in range(len(model_config.engine_types))
+    for age in range(_n_ages_pred)
+]
+pred = pd.DataFrame(pred_rows)
+pred['source'] = 'predicted'
+
+pred_years = pred.year.unique()
+hist = hist[~hist['year'].isin(pred_years)]
+
+
+holdings = pd.concat([hist, pred], ignore_index=True)
+holdings = holdings[['year', 'engine_type', 'car_age', 'value', 'source']]
+
+holdings = holdings.set_index(['year', 'engine_type', 'car_age']).sort_index()
+
+assert holdings.index.is_unique, "The index is not unique. Check for duplicates before continuing."
+
+# scale to by stock in baseline year.
+from pandas import IndexSlice as idx
+scale_stock = holdings.loc[idx[forecast_config.base_year, :, :], 'value'].sum()
+holdings.loc[:, 'value'] /= scale_stock
+
+holdings = (
+    holdings
+    .reset_index()
+    .set_index(['engine_type', 'car_age', 'year'])[['value', 'source']]
+    .loc[model_config.engine_types]
 )
 
-plot_kf_stock_total(
-    historical_distributions_kf=historical_distributions_kf,
-    forecasted_distributions_kf=forecasted_distributions_kf,
-    kf_historical_years=kf_historical_years,
-    kf_forecast_years=kf_forecast_years,
-    forecasted_distributions=forecasted_distributions,
-    holdings_dist=data['holdings_dist'],
-    forecast_config=forecast_config,
-    output_dir=COMPARISON_PLOT_DIR,
+holdings.to_pickle(
+    os.path.join(OUTPUT_DIR, 'phase_in_scenario.pkl'),
 )
 
-plot_kf_stock_by_engine(
-    historical_distributions_kf=historical_distributions_kf,
-    forecasted_distributions_kf=forecasted_distributions_kf,
-    kf_historical_years=kf_historical_years,
-    kf_forecast_years=kf_forecast_years,
-    forecasted_distributions=forecasted_distributions,
-    holdings_dist=data['holdings_dist'],
-    model_config=model_config,
-    forecast_config=forecast_config,
-    output_dir=COMPARISON_PLOT_DIR,
-)
+# aggregate to total stock by year and engine type, for sanity check
+total_by_year_engine = holdings.groupby(['year', 'engine_type'])['value'].sum().unstack('engine_type')
 
-plot_kf_inflow(
-    historical_inflows_kf=historical_inflows_kf,
-    projected_inflows_kf=projected_inflows_kf,
-    kf_historical_years=kf_historical_years,
-    kf_forecast_years=kf_forecast_years,
-    projected_inflows=projected_inflows,
-    car_purchases_market_shares=data['car_purchases_market_shares'],
-    forecast_config=forecast_config,
-    output_dir=COMPARISON_PLOT_DIR,
-)
+# and save this an excel file 
+total_by_year_engine.to_excel(os.path.join(OUTPUT_DIR, 'phase_in_scenario_total_by_year_engine.xlsx'))
 
-plot_kf_inflow_by_engine(
-    historical_inflows_kf=historical_inflows_kf,
-    projected_inflows_kf=projected_inflows_kf,
-    kf_historical_years=kf_historical_years,
-    kf_forecast_years=kf_forecast_years,
-    projected_inflows=projected_inflows,
-    car_purchases_market_shares=data['car_purchases_market_shares'],
-    model_config=model_config,
-    forecast_config=forecast_config,
-    output_dir=COMPARISON_PLOT_DIR,
-)
-
-plot_kf_stock_difference(
-    historical_distributions_kf=historical_distributions_kf,
-    forecasted_distributions_kf=forecasted_distributions_kf,
-    kf_historical_years=kf_historical_years,
-    kf_forecast_years=kf_forecast_years,
-    forecasted_distributions=forecasted_distributions,
-    holdings_dist=data['holdings_dist'],
-    denom_choice=denom_choice,
-    model_config=model_config,
-    forecast_config=forecast_config,
-    output_dir=COMPARISON_PLOT_DIR,
-)
-
-plot_kf_stock_difference_total(
-    historical_distributions_kf=historical_distributions_kf,
-    forecasted_distributions_kf=forecasted_distributions_kf,
-    kf_historical_years=kf_historical_years,
-    kf_forecast_years=kf_forecast_years,
-    forecasted_distributions=forecasted_distributions,
-    holdings_dist=data['holdings_dist'],
-    denom_choice=denom_choice,
-    forecast_config=forecast_config,
-    output_dir=COMPARISON_PLOT_DIR,
-)
-
+breakpoint()
